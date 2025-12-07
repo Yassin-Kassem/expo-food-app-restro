@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "app",
+    "name": "foodapp",
     "slug": "app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -13,14 +13,47 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yassinkassem.app",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#ffffff",
+        "package": "com.yassinkassem.app"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "googleServicesFile": "./google-services.json",
+      "package": "com.yassinkassem.app"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-image-picker",
+      "expo-location",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static",
+            "forceStaticLinking": [
+              "RNFBApp",
+              "RNFBAuth"
+            ]
+          },
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableMinifyInReleaseBuilds": true
+          }
+        }
+      ],
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -29,6 +62,7 @@
       "eas": {
         "projectId": "81062b67-1497-4f0c-b677-a5dbd1991bac"
       }
-    }
+    },
+    "owner": "yassinkassem"
   }
 }

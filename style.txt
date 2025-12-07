@@ -1,0 +1,291 @@
+🎨 FOOD ORDERING APP — DESIGN SYSTEM (LIGHT & DARK MODE) 
+** USE ONLY REACT NATIVE RESPONSIVE SCREEN TO MAKE THE STYLING RESPONSIVE AND ONLY USE INLINE STYLES **
+
+1️⃣ Design Philosophy
+Style Type
+
+Modern Food Marketplace UI
+
+Core Principles
+
+Content-first (food imagery > decoration)
+
+Neutral surfaces + brand accent
+
+Accessibility & contrast safe
+
+Scales for both User and Restaurant roles
+
+Minimal animations, maximum clarity
+
+2️⃣ Color System (Tokens)
+
+Never use raw hex colors in components.
+Always use tokens.
+
+🔆 Light Mode Colors
+colors.light = {
+  background: "#FFFFFF",
+  surface: "#F7F7F7",
+  card: "#FFFFFF",
+
+  primary: "#FF5A5F",
+  primaryMuted: "#FFE5E6",
+
+  secondary: "#34C759",
+
+  textPrimary: "#111111",
+  textSecondary: "#6B7280",
+  textMuted: "#9CA3AF",
+
+  border: "#E5E7EB",
+  divider: "#F1F5F9",
+
+  success: "#34C759",
+  warning: "#FACC15",
+  error: "#EF4444",
+
+  shadow: "rgba(0, 0, 0, 0.08)"
+};
+
+🌙 Dark Mode Colors
+colors.dark = {
+  background: "#000000",
+  surface: "#111827",
+  card: "#1F2937",
+
+  primary: "#FF6B6F",
+  primaryMuted: "#3B1D20",
+
+  secondary: "#30D158",
+
+  textPrimary: "#FFFFFF",
+  textSecondary: "#D1D5DB",
+  textMuted: "#9CA3AF",
+
+  border: "#374151",
+  divider: "#1F2937",
+
+  success: "#30D158",
+  warning: "#FACC15",
+  error: "#F87171",
+
+  shadow: "rgba(0, 0, 0, 0.5)"
+};
+
+
+✅ Color contrast passes accessibility
+✅ Food images still pop
+✅ Comfortable night usage
+
+3️⃣ Typography System
+Font Family
+
+Use Inter or system default (Expo friendly):
+
+font.family = "System"
+
+Font Weights
+font.weight = {
+  regular: "400",
+  medium: "500",
+  semibold: "600",
+  bold: "700"
+}
+
+Font Sizes
+font.size = {
+  titleXL: 24,
+  title: 22,
+  section: 18,
+  body: 16,
+  caption: 13,
+  tiny: 11
+}
+
+Usage
+
+App titles → titleXL
+
+Section headers → section
+
+Body text → body
+
+Labels/hints → caption
+
+4️⃣ Spacing & Layout System
+Base Unit: 8px
+spacing = {
+  xs: 4,
+  sm: 8,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  xxl: 40
+}
+
+
+✅ Everything aligns visually
+✅ Consistent spacing across screens
+
+5️⃣ Border Radius
+radius = {
+  sm: 6,
+  md: 10,
+  lg: 14,
+  pill: 999
+}
+
+
+Usage:
+
+Cards → md
+
+Buttons → lg
+
+Tags → pill
+
+6️⃣ Shadows & Elevation
+
+Used sparingly.
+
+shadow = {
+  sm: {
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2
+  },
+  md: {
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 5
+  }
+}
+
+
+✅ Clean
+✅ No heavy neumorphism
+✅ Food-focused
+
+7️⃣ Component Design Rules
+🔘 Buttons
+Primary Button
+background: colors.primary
+text: white
+height: 52
+radius: radius.lg
+
+Secondary Button
+background: colors.surface
+border: colors.border
+text: colors.textPrimary
+
+Disabled
+opacity: 0.5
+
+🧾 Cards
+background: colors.card
+padding: spacing.md
+borderRadius: radius.md
+shadow: shadow.sm
+
+
+Used for:
+
+Restaurants
+
+Menu items
+
+Orders
+
+🏷️ Tags / Chips
+background: colors.primaryMuted
+text: colors.primary
+padding: spacing.sm
+borderRadius: radius.pill
+
+🧭 Inputs
+background: colors.surface
+border: colors.border
+height: 48
+padding: spacing.md
+borderRadius: radius.md
+
+
+Focus:
+
+borderColor: colors.primary
+
+8️⃣ Navigation Style
+Bottom Tabs
+
+Icon size: 24
+
+Active color: primary
+
+Inactive color: textMuted
+
+Headers
+
+Minimal
+
+Left aligned titles
+
+Optional back arrow
+
+9️⃣ Feedback & States
+Success
+
+Green toast
+
+Short message
+
+Auto-dismiss
+
+Error
+
+Red toast
+
+Clear explanation
+
+Retry action if possible
+
+Loading
+
+Skeleton loaders preferred
+
+Spinners only for blocking actions
+
+🔁 10️⃣ Light/Dark Mode Switching
+Theme logic
+const theme = colorScheme === "dark"
+  ? colors.dark
+  : colors.light;
+
+
+✅ Automatic system mode support
+✅ Manual toggle optional (Settings)
+
+♿ 11️⃣ Accessibility Rules
+
+✅ Minimum text contrast
+✅ No color-only meaning
+✅ Buttons minimum height 44px
+✅ Touch targets ≥ 48px
+✅ Fonts never < 11px
+
+✅ 12️⃣ Final Component Token Example
+<Card
+  background={theme.card}
+  padding={spacing.md}
+  radius={radius.md}
+  shadow={shadow.sm}
+/>
+
+
+No magic numbers.
+No random colors.
