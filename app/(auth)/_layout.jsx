@@ -5,8 +5,16 @@ export default function AuthLayout() {
         <Stack
             screenOptions={{
                 headerShown: false,
+                animation: 'slide_from_right',
             }}
+            initialRouteName="welcome"
         >
+            <Stack.Screen 
+                name="welcome" 
+                options={{
+                    animation: 'fade',
+                }}
+            />
             <Stack.Screen name="login" />
             <Stack.Screen name="register" />
             <Stack.Screen name="role-select" />

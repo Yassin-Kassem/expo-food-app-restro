@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
@@ -9,7 +9,9 @@ import { spacing, fontSize, fontWeight, radius, shadows } from '../../../constan
 import Button from '../../../components/Button';
 import Input from '../../../components/Input';
 import ProgressIndicator from '../../../components/ProgressIndicator';
-import { addMenuItem, getRestaurantByOwner } from '../../../services/restaurantService';
+import { getRestaurantByOwner } from '../../../services/restaurantService';
+import { addMenuItem, getMenuItems, updateMenuItem } from '../../../services/menuService';
+import { uploadImage } from '../../../services/storageService';
 import { getCurrentUser } from '../../../services/authService';
 
 export default function AddFirstItem() {
@@ -21,6 +23,28 @@ export default function AddFirstItem() {
     const [price, setPrice] = useState('');
     const [imageUri, setImageUri] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [existingItemId, setExistingItemId] = useState(null);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        loadData();
+    }, []);
+
+    const loadData = async () => {
+        const user = getCurrentUser();
+        const restaurant = await getRestaurantByOwner(user.uid);
+        if (restaurant.success) {
+            const menuItems = await getMenuItems(restaurant.data.id);
+            if (menuItems.success && menuItems.data.length > 0) {
+                const item = menuItems.data[0];
+                setExistingItemId(item.id);
+                setName(item.name || '');
+                setDescription(item.description || '');
+                setPrice(item.price ? item.price.toString() : '');
+                setImageUri(item.imageUrl || null);
+            }
+        }
+    };
 
     const pickImage = async () => {
         const result = await ImagePicker.launchImageLibraryAsync({
@@ -33,34 +57,84 @@ export default function AddFirstItem() {
     };
 
     const handleNext = async () => {
-        if (!name || !price) return;
-        setLoading(true);
-        const user = getCurrentUser();
-        const restaurant = await getRestaurantByOwner(user.uid);
-        if (restaurant.success) {
-            await addMenuItem(restaurant.data.id, {
-                name,
-                description,
-                price: parseFloat(price),
-                imageUri
-            });
-            router.push('/onboarding/review');
+        if (!name || !price) {
+            setError('Name and price are required.');
+            return;
         }
-        setLoading(false);
+        setLoading(true);
+        setError('');
+        
+        try {
+            const user = getCurrentUser();
+            const restaurant = await getRestaurantByOwner(user.uid);
+            
+            if (!restaurant.success) {
+                setError('Restaurant not found. Please try again.');
+                setLoading(false);
+                return;
+            }
+
+            let imageUrl = imageUri;
+
+            // Upload image to Firebase Storage if it's a local file
+            if (imageUri && !imageUri.startsWith('http://') && !imageUri.startsWith('https://')) {
+                const upload = await uploadImage(imageUri, { folder: `restaurants/${restaurant.data.id}/menu` });
+                if (!upload.success) {
+                    setError(upload.error || 'Failed to upload image. Please try again.');
+                    setLoading(false);
+                    return;
+                }
+                imageUrl = upload.downloadURL;
+            }
+
+            const numericPrice = parseFloat(price);
+            if (isNaN(numericPrice) || numericPrice <= 0) {
+                setError('Please enter a valid price.');
+                setLoading(false);
+                return;
+            }
+
+            const itemData = {
+                name: name.trim(),
+                description: description.trim(),
+                price: numericPrice,
+                imageUrl,
+                available: true,
+                category: 'Featured'
+            };
+
+            let result;
+            if (existingItemId) {
+                result = await updateMenuItem(restaurant.data.id, existingItemId, itemData);
+            } else {
+                result = await addMenuItem(restaurant.data.id, itemData);
+            }
+
+            if (!result.success) {
+                setError(result.error || 'Failed to save menu item. Please try again.');
+                setLoading(false);
+                return;
+            }
+
+            router.push('/onboarding/review');
+        } catch (error) {
+            console.error('Error saving menu item:', error);
+            setError('An unexpected error occurred. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const styles = StyleSheet.create({
         safeArea: {
             flex: 1,
             backgroundColor: theme.surface,
-            paddingTop: spacing.xl,
         },
         header: {
             paddingHorizontal: spacing.lg,
             paddingBottom: spacing.lg,
             backgroundColor: theme.surface,
             zIndex: 10,
-            paddingTop: spacing.xxl,
         },
         title: {
             fontSize: fontSize.title,
@@ -159,6 +233,8 @@ export default function AddFirstItem() {
             paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.lg,
             borderTopWidth: 1,
             borderTopColor: theme.surfaceAlt,
+            flexDirection: 'row',
+            gap: spacing.md
         },
         nextButton: {
             shadowColor: theme.primary,
@@ -172,17 +248,20 @@ export default function AddFirstItem() {
     return (
         <View style={styles.safeArea}>
             <View style={styles.header}>
-                <ProgressIndicator currentStep={4} totalSteps={5} />
                 <View style={{ marginTop: spacing.md }}>
-                    <Text style={styles.title}>Add your first item</Text>
-                    <Text style={styles.subtitle}>Give customers a taste of what's to come.</Text>
+                    <Text style={styles.title}>Add your first item </Text>
+                    <Text style={styles.subtitle}>Give customers a taste of what's to come. </Text>
                 </View>
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
+                {error ? (
+                    <Text style={{ color: theme.error, marginBottom: spacing.sm }}>{error}</Text>
+                ) : null}
+
                 <View style={styles.previewSection}>
-                    <Text style={styles.previewLabel}>Live Card Preview</Text>
+                    <Text style={styles.previewLabel}>Live Card Preview </Text>
                     <View style={styles.menuCard}>
                         {imageUri ? (
                             <Image source={{ uri: imageUri }} style={styles.cardImage} resizeMode="cover" />
@@ -194,12 +273,12 @@ export default function AddFirstItem() {
                         <View style={styles.cardContent}>
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <View style={{ flex: 1, marginRight: spacing.sm }}>
-                                    <Text style={styles.cardTitle}>{name || 'Item Name'}</Text>
+                                    <Text style={styles.cardTitle}>{name || 'Item Name '} </Text>
                                     <Text style={styles.cardDesc} numberOfLines={2}>
-                                        {description || 'Delicious description goes here...'}
+                                        {description || 'Delicious description goes here... '}
                                     </Text>
                                 </View>
-                                <Text style={styles.cardPrice}>${price || '0.00'}</Text>
+                                <Text style={styles.cardPrice}>${price || '0.00 '}</Text>
                             </View>
                         </View>
                     </View>
@@ -207,26 +286,26 @@ export default function AddFirstItem() {
 
                 <TouchableOpacity onPress={pickImage} style={styles.uploadButton} activeOpacity={0.7}>
                     <Ionicons name={imageUri ? "refresh" : "camera"} size={20} color={theme.primary} />
-                    <Text style={styles.uploadText}>{imageUri ? 'Change Photo' : 'Upload Food Photo'}</Text>
+                    <Text style={styles.uploadText}>{imageUri ? 'Change Photo ' : 'Upload Food Photo '}</Text>
                 </TouchableOpacity>
 
                 <View style={{ gap: spacing.sm }}>
                     <Input
-                        label="Item Name"
-                        placeholder="e.g. Classic Cheeseburger"
+                        label="Item Name "
+                        placeholder="e.g. Classic Cheeseburger "
                         value={name}
                         onChangeText={setName}
                     />
                     <Input
-                        label="Price ($)"
-                        placeholder="9.99"
+                        label="Price (EGP) "
+                        placeholder="9.99 "
                         value={price}
                         onChangeText={setPrice}
                         keyboardType="decimal-pad"
                     />
                     <Input
-                        label="Description"
-                        placeholder="Juicy beef patty with..."
+                        label="Description "
+                        placeholder="Juicy beef patty with... "
                         value={description}
                         onChangeText={setDescription}
                         multiline
@@ -238,10 +317,16 @@ export default function AddFirstItem() {
 
             <View style={styles.footer}>
                 <Button
-                    title="Next Step"
+                    title="Back "
+                    onPress={() => router.back()}
+                    variant="secondary"
+                    style={{ flex: 1 }}
+                />
+                <Button
+                    title="Next Step "
                     onPress={handleNext}
                     loading={loading}
-                    style={styles.nextButton}
+                    style={[styles.nextButton, { flex: 2 }]}
                 />
             </View>
         </View>

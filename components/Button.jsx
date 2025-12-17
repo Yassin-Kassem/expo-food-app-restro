@@ -1,8 +1,6 @@
 import React from 'react';
-import { TouchableOpacity, Text, ActivityIndicator } from 'react-native';
+import { TouchableOpacity, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
-import { useTheme } from '../contexts/ThemeContext';
-import { spacing, radius, fontSize, fontWeight } from '../constants/theme';
 
 export default function Button({
     title,
@@ -12,38 +10,37 @@ export default function Button({
     loading = false,
     style = {}
 }) {
-    const { theme } = useTheme();
-
     const baseStyle = {
-        height: hp('6.5%'), // ~52px
-        borderRadius: radius.lg,
+        height: hp('6.5%'),
+        borderRadius: wp('3%'),
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: spacing.lg,
+        paddingHorizontal: wp('6%'),
         opacity: disabled ? 0.5 : 1
     };
 
     const variantStyles = {
         primary: {
-            backgroundColor: theme.primary
+            backgroundColor: '#FF6B4A'
         },
         secondary: {
-            backgroundColor: theme.surface,
+            backgroundColor: '#FFFFFF',
             borderWidth: 1,
-            borderColor: theme.border
+            borderColor: '#E5E7EB'
         }
     };
 
     const textStyles = {
         primary: {
             color: '#FFFFFF',
-            fontSize: fontSize.body,
-            fontWeight: fontWeight.semibold
+            fontSize: hp('1.9%'),
+            fontWeight: '700',
+            letterSpacing: 0.3
         },
         secondary: {
-            color: theme.textPrimary,
-            fontSize: fontSize.body,
-            fontWeight: fontWeight.semibold
+            color: '#1A1D1E',
+            fontSize: hp('1.9%'),
+            fontWeight: '600'
         }
     };
 
@@ -52,10 +49,10 @@ export default function Button({
             onPress={onPress}
             disabled={disabled || loading}
             style={[baseStyle, variantStyles[variant], style]}
-            activeOpacity={0.7}
+            activeOpacity={0.8}
         >
             {loading ? (
-                <ActivityIndicator color={variant === 'primary' ? '#FFFFFF' : theme.primary} />
+                <ActivityIndicator color={variant === 'primary' ? '#FFFFFF' : '#FF6B4A'} />
             ) : (
                 <Text style={textStyles[variant]}>{title}</Text>
             )}

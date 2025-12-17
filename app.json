@@ -15,13 +15,16 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.yassinkassem.app",
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "This app uses your location to find nearby restaurants.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app uses your location to find nearby restaurants."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff",
-        "package": "com.yassinkassem.app"
+        "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "googleServicesFile": "./google-services.json",
@@ -48,8 +51,7 @@
         }
       ],
       "@react-native-firebase/app",
-      "@react-native-firebase/auth",
-      "expo-font"
+      "@react-native-firebase/auth"
     ],
     "experiments": {
       "typedRoutes": true,

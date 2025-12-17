@@ -5,10 +5,11 @@ export default function UserLayout() {
         <Stack
             screenOptions={{
                 headerShown: false,
+                animation: 'slide_from_right',
             }}
         >
-            <Stack.Screen name="home" />
-            <Stack.Screen name="restaurant/[id]" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="restaurant" />
             <Stack.Screen name="cart" />
             <Stack.Screen name="checkout" />
             <Stack.Screen name="order-tracking" />

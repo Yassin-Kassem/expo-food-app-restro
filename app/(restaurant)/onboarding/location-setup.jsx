@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Alert, StyleSheet, SafeAreaView, TouchableOpacity, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { useRouter } from 'expo-router';
@@ -12,6 +12,7 @@ import CustomModal from '../../../components/CustomModal';
 import ProgressIndicator from '../../../components/ProgressIndicator';
 import { updateRestaurant, getRestaurantByOwner } from '../../../services/restaurantService';
 import { getCurrentUser } from '../../../services/authService';
+import { getUserData } from '../../../services/userService';
 
 export default function LocationSetup() {
     const { theme } = useTheme();
@@ -22,12 +23,38 @@ export default function LocationSetup() {
     const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
     const [gettingLocation, setGettingLocation] = useState(false);
+    const [isEditMode, setIsEditMode] = useState(false);
     const [modalConfig, setModalConfig] = useState({
         visible: false,
         title: '',
         message: '',
         type: 'info'
     });
+
+    useEffect(() => {
+        checkEditMode();
+        loadData();
+    }, []);
+
+    const checkEditMode = async () => {
+        const user = getCurrentUser();
+        if (user) {
+            const userData = await getUserData(user.uid);
+            if (userData.success && userData.data?.onboardingCompleted) {
+                setIsEditMode(true);
+            }
+        }
+    };
+
+    const loadData = async () => {
+        const user = getCurrentUser();
+        const existingRestaurant = await getRestaurantByOwner(user.uid);
+        if (existingRestaurant.success) {
+            const data = existingRestaurant.data;
+            if (data.address) setAddress(data.address);
+            if (data.location) setLocation(data.location);
+        }
+    };
 
     const requestLocationPermission = async () => {
         const { status } = await Location.requestForegroundPermissionsAsync();
@@ -82,7 +109,13 @@ export default function LocationSetup() {
 
         if (restaurantResult.success) {
             await updateRestaurant(restaurantResult.data.id, { location, address });
-            router.push('/onboarding/hours');
+            
+            // If in edit mode, go back to settings; otherwise continue onboarding
+            if (isEditMode) {
+                router.back();
+            } else {
+                router.push('/onboarding/hours');
+            }
         }
         setLoading(false);
     };
@@ -91,14 +124,12 @@ export default function LocationSetup() {
         safeArea: {
             flex: 1,
             backgroundColor: theme.surface,
-            paddingTop: spacing.xl,
         },
         header: {
             paddingHorizontal: spacing.lg,
             paddingBottom: spacing.lg,
             backgroundColor: theme.surface,
             zIndex: 10,
-            paddingTop: spacing.xxl,
         },
         title: {
             fontSize: fontSize.title,
@@ -176,6 +207,8 @@ export default function LocationSetup() {
             paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.lg,
             borderTopWidth: 1,
             borderTopColor: theme.surfaceAlt,
+            flexDirection: 'row',
+            gap: spacing.md
         },
         nextButton: {
             shadowColor: theme.primary,
@@ -189,10 +222,9 @@ export default function LocationSetup() {
     return (
         <View style={styles.safeArea}>
             <View style={styles.header}>
-                <ProgressIndicator currentStep={2} totalSteps={5} />
-                <View style={{ marginTop: spacing.md }}>
-                    <Text style={styles.title}>Where are you located?</Text>
-                    <Text style={styles.subtitle}>Help customers find you.</Text>
+                <View style={{ marginTop: spacing.sm }}>
+                    <Text style={styles.title}>Where are you located? </Text>
+                    <Text style={styles.subtitle}>Help customers find you. </Text>
                 </View>
             </View>
 
@@ -215,12 +247,12 @@ export default function LocationSetup() {
                         activeOpacity={0.7}
                     >
                         <Ionicons name={gettingLocation ? "hourglass-outline" : "navigate-circle-outline"} size={22} color={theme.primary} />
-                        <Text style={styles.locationBtnText}>{gettingLocation ? "Locating..." : "Use Current Location"}</Text>
+                        <Text style={styles.locationBtnText}>{gettingLocation ? "Locating... " : "Use Current Location "}</Text>
                     </TouchableOpacity>
 
                     <Input
-                        label="Full Address"
-                        placeholder="123 Main St, New York, NY"
+                        label="Full Address "
+                        placeholder="123 Main St, New York, NY "
                         value={address}
                         onChangeText={setAddress}
                         error={errors.address}
@@ -232,10 +264,16 @@ export default function LocationSetup() {
 
             <View style={styles.footer}>
                 <Button
-                    title="Continue"
+                    title="Back "
+                    onPress={() => router.back()}
+                    variant="secondary"
+                    style={{ flex: 1 }}
+                />
+                <Button
+                    title={isEditMode ? "Save" : "Continue"}
                     onPress={handleNext}
                     loading={loading}
-                    style={styles.nextButton}
+                    style={[styles.nextButton, { flex: 2 }]}
                 />
             </View>
 

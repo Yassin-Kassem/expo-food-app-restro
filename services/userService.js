@@ -3,12 +3,13 @@ import { firebaseFirestore } from '../config/firebase.config';
 /**
  * Create user document in Firestore
  */
-export const createUserDocument = async (uid, role) => {
+export const createUserDocument = async (uid, role, userData = {}) => {
     try {
         await firebaseFirestore().collection('users').doc(uid).set({
             role: role, // "user" or "restaurant"
             onboardingCompleted: role === 'user' ? true : false,
-            createdAt: firebaseFirestore.FieldValue.serverTimestamp()
+            createdAt: firebaseFirestore.FieldValue.serverTimestamp(),
+            ...userData
         });
         return { success: true };
     } catch (error) {

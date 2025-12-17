@@ -1,7 +1,9 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { ThemeProvider, useTheme } from '../contexts/ThemeContext';
+import { CartProvider } from '../contexts/CartContext';
+import { LocationProvider } from '../contexts/LocationContext';
 import { useAuth } from '../hooks/useAuth';
 
 function RootLayoutContent() {
@@ -10,13 +12,30 @@ function RootLayoutContent() {
     const router = useRouter();
     const segments = useSegments();
     const [navigationReady, setNavigationReady] = useState(false);
+    const roleSelectTimeoutRef = useRef(null);
+
+    useEffect(() => {
+        // Cleanup timeout on unmount
+        return () => {
+            if (roleSelectTimeoutRef.current) {
+                clearTimeout(roleSelectTimeoutRef.current);
+            }
+        };
+    }, []);
 
     useEffect(() => {
         if (loading) return;
 
+        // Clear any pending role-select redirect
+        if (roleSelectTimeoutRef.current) {
+            clearTimeout(roleSelectTimeoutRef.current);
+            roleSelectTimeoutRef.current = null;
+        }
+
         const inAuthGroup = segments[0] === '(auth)';
         const inRestaurantGroup = segments[0] === '(restaurant)';
         const inUserGroup = segments[0] === '(user)';
+        const inSettingsGroup = segments[0] === '(settings)';
         const inOnboarding = segments[1] === 'onboarding';
 
         console.log('🔍 Routing Debug:', {
@@ -26,33 +45,46 @@ function RootLayoutContent() {
             inAuthGroup,
             inRestaurantGroup,
             inUserGroup,
+            inSettingsGroup,
             inOnboarding,
             ready: navigationReady
         });
 
         // Navigate to appropriate screen based on auth state
         if (!user) {
-            // Not authenticated - redirect to login if not already in auth group
+            // Not authenticated - redirect to welcome if not already in auth group
             if (!inAuthGroup) {
-                console.log('➡️ Redirecting to login (no user)');
-                router.replace('/login');
+                console.log('➡️ Redirecting to welcome (no user)');
+                router.replace('/(auth)/welcome');
             } else {
                 setNavigationReady(true);
             }
         } else if (!userData) {
-            // Authenticated but no user data - redirect to role select
+            // Authenticated but no user data - wait a moment before redirecting to role-select
+            // This prevents race conditions during login when userData is still loading
             const onRoleSelect = segments[1] === 'role-select';
-            if (!onRoleSelect) {
-                console.log('➡️ Redirecting to role-select (no userData)');
-                router.replace('/role-select');
-            } else {
+            
+            if (onRoleSelect) {
+                // Already on role-select, always allow it to show (fixes reload issue)
+                setNavigationReady(true);
+            } else if (inAuthGroup) {
+                // In auth group but not on role-select, redirect to role-select
+                roleSelectTimeoutRef.current = setTimeout(() => {
+                    console.log('➡️ Redirecting to role-select (no userData after delay)');
+                    router.replace('/(auth)/role-select');
+                }, 500); // Wait 500ms for userData to load
+            } else if (segments.length === 0) {
+                // Segments empty during app initialization/reload - redirect to role-select
+                console.log('➡️ Redirecting to role-select (empty segments, no userData)');
+                router.replace('/(auth)/role-select');
                 setNavigationReady(true);
             }
+            // If not in auth group and not on role-select, don't set navigationReady - let the guard show auth routes first
         } else if (userData.role === 'user') {
-            // User role - redirect to home if not already in user group
-            if (!inUserGroup) {
+            // User role - redirect to home if not in user or settings group
+            if (!inUserGroup && !inSettingsGroup) {
                 console.log('➡️ Redirecting to home (user role)');
-                router.replace('/home');
+                router.replace('/(user)/(tabs)/home');
             } else {
                 setNavigationReady(true);
             }
@@ -66,8 +98,8 @@ function RootLayoutContent() {
                 setNavigationReady(true);
             }
         } else if (userData.role === 'restaurant' && userData.onboardingCompleted) {
-            // Restaurant with completed onboarding - redirect to dashboard if in onboarding or not in restaurant group
-            if (inOnboarding || !inRestaurantGroup) {
+            // Restaurant with completed onboarding - redirect to dashboard if in onboarding or not in restaurant or settings group
+            if (inOnboarding || (!inRestaurantGroup && !inSettingsGroup)) {
                 console.log('➡️ Redirecting to dashboard (restaurant, completed onboarding)');
                 router.replace('/dashboard');
             } else {
@@ -117,7 +149,11 @@ function RootLayoutContent() {
 export default function RootLayout() {
     return (
         <ThemeProvider>
-            <RootLayoutContent />
+            <LocationProvider>
+                <CartProvider>
+                    <RootLayoutContent />
+                </CartProvider>
+            </LocationProvider>
         </ThemeProvider>
     );
 }
