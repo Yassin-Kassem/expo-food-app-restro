@@ -1,5 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Image, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+    View, 
+    Text, 
+    ScrollView, 
+    StyleSheet, 
+    TouchableOpacity, 
+    Image, 
+    Platform,
+    Animated,
+    KeyboardAvoidingView,
+    ActivityIndicator
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { useRouter } from 'expo-router';
@@ -8,14 +19,14 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import { spacing, fontSize, fontWeight, radius, shadows } from '../../../constants/theme';
 import Button from '../../../components/Button';
 import Input from '../../../components/Input';
-import ProgressIndicator from '../../../components/ProgressIndicator';
+import CustomModal from '../../../components/CustomModal';
 import { getRestaurantByOwner } from '../../../services/restaurantService';
 import { addMenuItem, getMenuItems, updateMenuItem } from '../../../services/menuService';
 import { uploadImage } from '../../../services/storageService';
 import { getCurrentUser } from '../../../services/authService';
 
 export default function AddFirstItem() {
-    const { theme } = useTheme();
+    const { theme, isDarkMode } = useTheme();
     const router = useRouter();
 
     const [name, setName] = useState('');
@@ -23,10 +34,47 @@ export default function AddFirstItem() {
     const [price, setPrice] = useState('');
     const [imageUri, setImageUri] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [uploading, setUploading] = useState(false);
     const [existingItemId, setExistingItemId] = useState(null);
-    const [error, setError] = useState('');
+    const [modalConfig, setModalConfig] = useState({
+        visible: false,
+        title: '',
+        message: '',
+        type: 'info'
+    });
+
+    // Animations
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(30)).current;
+    const cardAnim = useRef(new Animated.Value(0)).current;
+    const scaleAnim = useRef(new Animated.Value(0.95)).current;
 
     useEffect(() => {
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 500,
+                useNativeDriver: true,
+            }),
+            Animated.spring(slideAnim, {
+                toValue: 0,
+                friction: 8,
+                useNativeDriver: true,
+            }),
+            Animated.timing(cardAnim, {
+                toValue: 1,
+                duration: 600,
+                delay: 200,
+                useNativeDriver: true,
+            }),
+            Animated.spring(scaleAnim, {
+                toValue: 1,
+                friction: 8,
+                delay: 200,
+                useNativeDriver: true,
+            }),
+        ]).start();
+
         loadData();
     }, []);
 
@@ -47,58 +95,89 @@ export default function AddFirstItem() {
     };
 
     const pickImage = async () => {
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [4, 3],
-            quality: 0.8,
-        });
-        if (!result.canceled) setImageUri(result.assets[0].uri);
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [4, 3],
+                quality: 0.8,
+            });
+            if (!result.canceled) {
+                setImageUri(result.assets[0].uri);
+            }
+        } catch (error) {
+            setModalConfig({
+                visible: true,
+                title: 'Error',
+                message: 'Failed to pick image. Please try again.',
+                type: 'error'
+            });
+        }
     };
 
     const handleNext = async () => {
-        if (!name || !price) {
-            setError('Name and price are required.');
+        if (!name.trim()) {
+            setModalConfig({
+                visible: true,
+                title: 'Missing Information',
+                message: 'Please enter a name for your menu item.',
+                type: 'warning'
+            });
             return;
         }
+
+        if (!price.trim()) {
+            setModalConfig({
+                visible: true,
+                title: 'Missing Information',
+                message: 'Please enter a price for your menu item.',
+                type: 'warning'
+            });
+            return;
+        }
+
+        const numericPrice = parseFloat(price);
+        if (isNaN(numericPrice) || numericPrice <= 0) {
+            setModalConfig({
+                visible: true,
+                title: 'Invalid Price',
+                message: 'Please enter a valid price greater than 0.',
+                type: 'warning'
+            });
+            return;
+        }
+
         setLoading(true);
-        setError('');
         
         try {
             const user = getCurrentUser();
             const restaurant = await getRestaurantByOwner(user.uid);
             
             if (!restaurant.success) {
-                setError('Restaurant not found. Please try again.');
-                setLoading(false);
-                return;
+                throw new Error('Restaurant not found. Please try again.');
             }
 
             let imageUrl = imageUri;
 
-            // Upload image to Firebase Storage if it's a local file
+            // Upload image if it's a local file
             if (imageUri && !imageUri.startsWith('http://') && !imageUri.startsWith('https://')) {
-                const upload = await uploadImage(imageUri, { folder: `restaurants/${restaurant.data.id}/menu` });
+                setUploading(true);
+                const upload = await uploadImage(imageUri, { 
+                    folder: `restaurants/${restaurant.data.id}/menu` 
+                });
+                setUploading(false);
+                
                 if (!upload.success) {
-                    setError(upload.error || 'Failed to upload image. Please try again.');
-                    setLoading(false);
-                    return;
+                    throw new Error(upload.error || 'Failed to upload image');
                 }
                 imageUrl = upload.downloadURL;
-            }
-
-            const numericPrice = parseFloat(price);
-            if (isNaN(numericPrice) || numericPrice <= 0) {
-                setError('Please enter a valid price.');
-                setLoading(false);
-                return;
             }
 
             const itemData = {
                 name: name.trim(),
                 description: description.trim(),
                 price: numericPrice,
-                imageUrl,
+                imageUrl: imageUrl || '',
                 available: true,
                 category: 'Featured'
             };
@@ -111,30 +190,44 @@ export default function AddFirstItem() {
             }
 
             if (!result.success) {
-                setError(result.error || 'Failed to save menu item. Please try again.');
-                setLoading(false);
-                return;
+                throw new Error(result.error || 'Failed to save menu item');
             }
 
             router.push('/onboarding/review');
         } catch (error) {
-            console.error('Error saving menu item:', error);
-            setError('An unexpected error occurred. Please try again.');
+            setModalConfig({
+                visible: true,
+                title: 'Error',
+                message: error.message || 'Something went wrong. Please try again.',
+                type: 'error'
+            });
         } finally {
             setLoading(false);
+            setUploading(false);
         }
     };
 
+    const formatPrice = (value) => {
+        if (!value) return 'EGP 0.00';
+        const num = parseFloat(value);
+        if (isNaN(num)) return 'EGP 0.00';
+        return `EGP ${num.toFixed(2)}`;
+    };
+
     const styles = StyleSheet.create({
-        safeArea: {
+        container: {
             flex: 1,
-            backgroundColor: theme.surface,
+            backgroundColor: theme.background,
         },
-        header: {
+        scrollContent: {
+            paddingBottom: hp('18%'),
+        },
+        
+        // Header Section
+        headerSection: {
             paddingHorizontal: spacing.lg,
-            paddingBottom: spacing.lg,
-            backgroundColor: theme.surface,
-            zIndex: 10,
+            paddingTop: spacing.md,
+            paddingBottom: spacing.md,
         },
         title: {
             fontSize: fontSize.title,
@@ -146,15 +239,120 @@ export default function AddFirstItem() {
         subtitle: {
             fontSize: fontSize.body,
             color: theme.textSecondary,
-            lineHeight: fontSize.body * 1.5,
+            lineHeight: hp('2.8%'),
         },
+        
+        // Preview Section
         previewSection: {
-            backgroundColor: theme.surfaceAlt,
-            padding: spacing.lg,
-            borderRadius: radius.xl,
-            marginBottom: spacing.xl,
+            paddingHorizontal: spacing.lg,
+            marginBottom: spacing.lg,
         },
         previewLabel: {
+            fontSize: fontSize.caption,
+            fontWeight: fontWeight.bold,
+            color: theme.textMuted,
+            marginBottom: spacing.sm,
+            textTransform: 'uppercase',
+            letterSpacing: 1,
+        },
+        previewCard: {
+            backgroundColor: theme.surface,
+            borderRadius: radius.xl,
+            overflow: 'hidden',
+            ...shadows.medium,
+        },
+        cardImageContainer: {
+            width: '100%',
+            height: hp('20%'),
+            backgroundColor: isDarkMode ? theme.surfaceAlt : '#F3F4F6',
+            justifyContent: 'center',
+            alignItems: 'center',
+            position: 'relative',
+        },
+        cardImage: {
+            width: '100%',
+            height: '100%',
+        },
+        cardImagePlaceholder: {
+            alignItems: 'center',
+        },
+        placeholderIconContainer: {
+            width: hp('7%'),
+            height: hp('7%'),
+            borderRadius: hp('3.5%'),
+            backgroundColor: `${theme.primary}15`,
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginBottom: spacing.sm,
+        },
+        placeholderText: {
+            fontSize: fontSize.caption,
+            color: theme.textMuted,
+            fontWeight: fontWeight.medium,
+        },
+        uploadBadge: {
+            position: 'absolute',
+            bottom: spacing.md,
+            right: spacing.md,
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: 'rgba(255,255,255,0.95)',
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.sm,
+            borderRadius: radius.pill,
+            gap: spacing.xs,
+            ...shadows.soft,
+        },
+        uploadBadgeText: {
+            fontSize: fontSize.caption,
+            fontWeight: fontWeight.semibold,
+            color: theme.textPrimary,
+        },
+        cardContent: {
+            padding: spacing.lg,
+        },
+        cardHeader: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            marginBottom: spacing.sm,
+        },
+        cardTitleContainer: {
+            flex: 1,
+            marginRight: spacing.md,
+        },
+        cardTitle: {
+            fontSize: fontSize.subtitle,
+            fontWeight: fontWeight.bold,
+            color: theme.textPrimary,
+            marginBottom: spacing.xs / 2,
+        },
+        cardCategory: {
+            fontSize: fontSize.caption,
+            color: theme.textMuted,
+        },
+        cardPrice: {
+            fontSize: fontSize.subtitle,
+            fontWeight: fontWeight.bold,
+            color: theme.primary,
+        },
+        cardDescription: {
+            fontSize: fontSize.body,
+            color: theme.textSecondary,
+            lineHeight: hp('2.5%'),
+        },
+        
+        // Form Section
+        formSection: {
+            paddingHorizontal: spacing.lg,
+        },
+        formCard: {
+            backgroundColor: theme.surface,
+            borderRadius: radius.xl,
+            padding: spacing.lg,
+            ...shadows.soft,
+        },
+        formTitle: {
             fontSize: fontSize.caption,
             fontWeight: fontWeight.bold,
             color: theme.textMuted,
@@ -162,66 +360,43 @@ export default function AddFirstItem() {
             textTransform: 'uppercase',
             letterSpacing: 1,
         },
-        menuCard: {
-            backgroundColor: theme.surface,
-            borderRadius: radius.lg,
-            overflow: 'hidden',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.08,
-            shadowRadius: 12,
-            elevation: 4,
+        
+        // Tips Section
+        tipsSection: {
+            paddingHorizontal: spacing.lg,
+            marginTop: spacing.lg,
         },
-        cardImage: {
-            width: '100%',
-            height: 160,
-            backgroundColor: '#E5E7EB',
+        tipsCard: {
+            backgroundColor: isDarkMode ? theme.surfaceAlt : '#FFF8E1',
+            borderRadius: radius.xl,
+            padding: spacing.lg,
+            flexDirection: 'row',
+            gap: spacing.md,
+        },
+        tipsIconContainer: {
+            width: hp('4.5%'),
+            height: hp('4.5%'),
+            borderRadius: hp('2.25%'),
+            backgroundColor: `${theme.warning}20`,
             justifyContent: 'center',
             alignItems: 'center',
         },
-        cardContent: {
-            padding: spacing.md,
+        tipsContent: {
+            flex: 1,
         },
-        cardTitle: {
-            fontSize: fontSize.subtitle,
-            fontWeight: fontWeight.bold,
-            color: theme.textPrimary,
-            marginBottom: 4,
-        },
-        cardDesc: {
-            fontSize: fontSize.caption,
-            color: theme.textSecondary,
-            marginBottom: spacing.sm,
-            lineHeight: 18,
-        },
-        cardPrice: {
+        tipsTitle: {
             fontSize: fontSize.body,
             fontWeight: fontWeight.bold,
-            color: theme.primary,
-        },
-        uploadButton: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: theme.surface,
-            padding: spacing.md,
-            borderRadius: radius.lg,
-            borderWidth: 1.5,
-            borderColor: theme.border,
-            borderStyle: 'dashed',
-            marginBottom: spacing.lg,
-            height: 60,
-        },
-        uploadText: {
-            marginLeft: spacing.sm,
             color: theme.textPrimary,
-            fontWeight: fontWeight.medium,
+            marginBottom: spacing.xs,
         },
-        scrollContent: {
-            paddingHorizontal: spacing.lg,
-            paddingTop: spacing.md,
-            paddingBottom: hp('15%'),
+        tipsText: {
+            fontSize: fontSize.caption,
+            color: theme.textSecondary,
+            lineHeight: hp('2.2%'),
         },
+        
+        // Footer
         footer: {
             position: 'absolute',
             bottom: 0,
@@ -232,103 +407,214 @@ export default function AddFirstItem() {
             paddingTop: spacing.md,
             paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.lg,
             borderTopWidth: 1,
-            borderTopColor: theme.surfaceAlt,
+            borderTopColor: theme.border,
             flexDirection: 'row',
-            gap: spacing.md
+            gap: spacing.md,
+            ...shadows.floating,
         },
-        nextButton: {
-            shadowColor: theme.primary,
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.25,
-            shadowRadius: 16,
-            elevation: 8,
-        }
+        
+        // Upload Overlay
+        uploadingOverlay: {
+            ...StyleSheet.absoluteFillObject,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
     });
 
     return (
-        <View style={styles.safeArea}>
-            <View style={styles.header}>
-                <View style={{ marginTop: spacing.md }}>
-                    <Text style={styles.title}>Add your first item </Text>
-                    <Text style={styles.subtitle}>Give customers a taste of what's to come. </Text>
-                </View>
-            </View>
+        <View style={styles.container}>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ flex: 1 }}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+            >
+                <ScrollView 
+                    contentContainerStyle={styles.scrollContent} 
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    {/* Header */}
+                    <Animated.View 
+                        style={[
+                            styles.headerSection,
+                            {
+                                opacity: fadeAnim,
+                                transform: [{ translateY: slideAnim }]
+                            }
+                        ]}
+                    >
+                        <Text style={styles.title}>Add your first item</Text>
+                        <Text style={styles.subtitle}>
+                            Create a delicious menu item to attract customers
+                        </Text>
+                    </Animated.View>
 
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
-                {error ? (
-                    <Text style={{ color: theme.error, marginBottom: spacing.sm }}>{error}</Text>
-                ) : null}
-
-                <View style={styles.previewSection}>
-                    <Text style={styles.previewLabel}>Live Card Preview </Text>
-                    <View style={styles.menuCard}>
-                        {imageUri ? (
-                            <Image source={{ uri: imageUri }} style={styles.cardImage} resizeMode="cover" />
-                        ) : (
-                            <View style={styles.cardImage}>
-                                <Ionicons name="fast-food-outline" size={40} color={theme.textMuted} />
-                            </View>
-                        )}
-                        <View style={styles.cardContent}>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                <View style={{ flex: 1, marginRight: spacing.sm }}>
-                                    <Text style={styles.cardTitle}>{name || 'Item Name '} </Text>
-                                    <Text style={styles.cardDesc} numberOfLines={2}>
-                                        {description || 'Delicious description goes here... '}
+                    {/* Live Preview */}
+                    <Animated.View 
+                        style={[
+                            styles.previewSection,
+                            {
+                                opacity: cardAnim,
+                                transform: [{ scale: scaleAnim }]
+                            }
+                        ]}
+                    >
+                        <Text style={styles.previewLabel}>Live Preview</Text>
+                        <View style={styles.previewCard}>
+                            <TouchableOpacity 
+                                style={styles.cardImageContainer}
+                                onPress={pickImage}
+                                activeOpacity={0.9}
+                            >
+                                {imageUri ? (
+                                    <>
+                                        <Image 
+                                            source={{ uri: imageUri }} 
+                                            style={styles.cardImage} 
+                                            resizeMode="cover" 
+                                        />
+                                        {uploading && (
+                                            <View style={styles.uploadingOverlay}>
+                                                <ActivityIndicator size="large" color="#fff" />
+                                            </View>
+                                        )}
+                                    </>
+                                ) : (
+                                    <View style={styles.cardImagePlaceholder}>
+                                        <View style={styles.placeholderIconContainer}>
+                                            <Ionicons 
+                                                name="fast-food" 
+                                                size={hp('3%')} 
+                                                color={theme.primary} 
+                                            />
+                                        </View>
+                                        <Text style={styles.placeholderText}>
+                                            {"Tap to add photo "}
+                                        </Text>
+                                    </View>
+                                )}
+                                <View style={styles.uploadBadge}>
+                                    <Ionicons 
+                                        name={imageUri ? "pencil" : "camera"} 
+                                        size={hp('1.6%')} 
+                                        color={theme.primary} 
+                                    />
+                                    <Text style={styles.uploadBadgeText}>
+                                        {imageUri ? 'Change' : 'Add'} Photo
                                     </Text>
                                 </View>
-                                <Text style={styles.cardPrice}>${price || '0.00 '}</Text>
+                            </TouchableOpacity>
+                            <View style={styles.cardContent}>
+                                <View style={styles.cardHeader}>
+                                    <View style={styles.cardTitleContainer}>
+                                        <Text style={styles.cardTitle} numberOfLines={1}>
+                                            {name || 'Item Name'}
+                                        </Text>
+                                        <Text style={styles.cardCategory}>Featured</Text>
+                                    </View>
+                                    <Text style={styles.cardPrice}>
+                                        {formatPrice(price)}
+                                    </Text>
+                                </View>
+                                <Text style={styles.cardDescription} numberOfLines={2}>
+                                    {description || 'Add a mouthwatering description...'}
+                                </Text>
                             </View>
                         </View>
-                    </View>
-                </View>
+                    </Animated.View>
 
-                <TouchableOpacity onPress={pickImage} style={styles.uploadButton} activeOpacity={0.7}>
-                    <Ionicons name={imageUri ? "refresh" : "camera"} size={20} color={theme.primary} />
-                    <Text style={styles.uploadText}>{imageUri ? 'Change Photo ' : 'Upload Food Photo '}</Text>
-                </TouchableOpacity>
+                    {/* Form */}
+                    <Animated.View 
+                        style={[
+                            styles.formSection,
+                            {
+                                opacity: fadeAnim,
+                                transform: [{ translateY: slideAnim }]
+                            }
+                        ]}
+                    >
+                        <View style={styles.formCard}>
+                            <Text style={styles.formTitle}>Item Details</Text>
+                            
+                            <Input
+                                label="Item Name"
+                                placeholder="e.g. Classic Cheeseburger"
+                                value={name}
+                                onChangeText={setName}
+                                autoCapitalize="words"
+                            />
+                            <Input
+                                label="Price (EGP)"
+                                placeholder="e.g. 99.99"
+                                value={price}
+                                onChangeText={setPrice}
+                                keyboardType="decimal-pad"
+                            />
+                            <Input
+                                label="Description"
+                                placeholder="Describe what makes this item special..."
+                                value={description}
+                                onChangeText={setDescription}
+                                multiline
+                                numberOfLines={3}
+                            />
+                        </View>
+                    </Animated.View>
 
-                <View style={{ gap: spacing.sm }}>
-                    <Input
-                        label="Item Name "
-                        placeholder="e.g. Classic Cheeseburger "
-                        value={name}
-                        onChangeText={setName}
-                    />
-                    <Input
-                        label="Price (EGP) "
-                        placeholder="9.99 "
-                        value={price}
-                        onChangeText={setPrice}
-                        keyboardType="decimal-pad"
-                    />
-                    <Input
-                        label="Description "
-                        placeholder="Juicy beef patty with... "
-                        value={description}
-                        onChangeText={setDescription}
-                        multiline
-                        numberOfLines={3}
-                    />
-                </View>
+                    {/* Tips */}
+                    <Animated.View 
+                        style={[
+                            styles.tipsSection,
+                            { opacity: fadeAnim }
+                        ]}
+                    >
+                        <View style={styles.tipsCard}>
+                            <View style={styles.tipsIconContainer}>
+                                <Ionicons name="bulb" size={hp('2%')} color={theme.warning} />
+                            </View>
+                            <View style={styles.tipsContent}>
+                                <Text style={styles.tipsTitle}>Pro Tip</Text>
+                                <Text style={styles.tipsText}>
+                                    Items with high-quality photos get 3x more orders. 
+                                    Use natural lighting for best results!
+                                </Text>
+                            </View>
+                        </View>
+                    </Animated.View>
+                </ScrollView>
+            </KeyboardAvoidingView>
 
-            </ScrollView>
-
+            {/* Footer */}
             <View style={styles.footer}>
                 <Button
-                    title="Back "
+                    title="Back"
                     onPress={() => router.back()}
                     variant="secondary"
                     style={{ flex: 1 }}
                 />
                 <Button
-                    title="Next Step "
+                    title="Continue"
                     onPress={handleNext}
-                    loading={loading}
-                    style={[styles.nextButton, { flex: 2 }]}
+                    loading={loading || uploading}
+                    disabled={uploading}
+                    style={{ flex: 2 }}
+                    icon={!loading && !uploading && (
+                        <Ionicons name="arrow-forward" size={hp('2%')} color="#fff" />
+                    )}
                 />
             </View>
+
+            {/* Modal */}
+            <CustomModal
+                visible={modalConfig.visible}
+                type={modalConfig.type}
+                title={modalConfig.title}
+                message={modalConfig.message}
+                primaryButtonText="OK"
+                onPrimaryPress={() => setModalConfig(prev => ({ ...prev, visible: false }))}
+                onClose={() => setModalConfig(prev => ({ ...prev, visible: false }))}
+            />
         </View>
     );
 }

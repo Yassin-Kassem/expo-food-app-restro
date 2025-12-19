@@ -322,6 +322,68 @@ export const deleteMenuItem = async (restaurantId, itemId) => {
 };
 
 /**
+ * Get all menu items for a restaurant (one-time fetch)
+ */
+export const getMenuItems = async (restaurantId) => {
+    try {
+        if (!restaurantId) {
+            return { 
+                success: false, 
+                error: 'Restaurant ID is required',
+                errorCode: 'VALIDATION_ERROR',
+                retryable: false,
+                data: []
+            };
+        }
+
+        const snapshot = await firebaseFirestore()
+            .collection('restaurants')
+            .doc(restaurantId)
+            .collection('menuItems')
+            .orderBy('name')
+            .get();
+
+        const items = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+
+        return { success: true, data: items };
+    } catch (error) {
+        logError('GET_MENU_ITEMS_ERROR', error, { restaurantId });
+        
+        if (error.code === 'permission-denied') {
+            return { 
+                success: false, 
+                error: 'Permission denied',
+                errorCode: 'PERMISSION_DENIED',
+                retryable: false,
+                data: []
+            };
+        }
+
+        if (error.code === 'unavailable' || error.message?.includes('network')) {
+            const networkError = handleNetworkError(error);
+            return {
+                success: false,
+                error: networkError.userMessage,
+                errorCode: networkError.errorCode,
+                retryable: networkError.retryable,
+                data: []
+            };
+        }
+
+        return { 
+            success: false, 
+            error: 'Failed to get menu items',
+            errorCode: 'UNKNOWN_ERROR',
+            retryable: true,
+            data: []
+        };
+    }
+};
+
+/**
  * Get a single menu item by ID
  */
 export const getMenuItem = async (restaurantId, itemId) => {

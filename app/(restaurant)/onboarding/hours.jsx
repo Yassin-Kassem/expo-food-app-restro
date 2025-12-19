@@ -1,5 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+    View, 
+    Text, 
+    ScrollView, 
+    StyleSheet, 
+    TouchableOpacity, 
+    Platform,
+    Animated 
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { useRouter } from 'expo-router';
@@ -13,15 +21,16 @@ import { getCurrentUser } from '../../../services/authService';
 import { getUserData } from '../../../services/userService';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const DAY_ABBREV = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default function HoursSetup() {
-    const { theme } = useTheme();
+    const { theme, isDarkMode } = useTheme();
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [timePickerVisible, setTimePickerVisible] = useState(false);
     const [timePickerDay, setTimePickerDay] = useState(null);
-    const [timePickerType, setTimePickerType] = useState(null); // 'open' or 'close'
+    const [timePickerType, setTimePickerType] = useState(null);
 
     const [schedule, setSchedule] = useState(
         DAYS.reduce((acc, day) => ({
@@ -30,7 +39,36 @@ export default function HoursSetup() {
         }), {})
     );
 
+    // Animations
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(30)).current;
+    const dayAnims = useRef(DAYS.map(() => new Animated.Value(0))).current;
+
     useEffect(() => {
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 500,
+                useNativeDriver: true,
+            }),
+            Animated.spring(slideAnim, {
+                toValue: 0,
+                friction: 8,
+                useNativeDriver: true,
+            }),
+        ]).start();
+
+        // Stagger day card animations
+        Animated.stagger(80, 
+            dayAnims.map(anim => 
+                Animated.spring(anim, {
+                    toValue: 1,
+                    friction: 8,
+                    useNativeDriver: true,
+                })
+            )
+        ).start();
+
         checkEditMode();
         loadData();
     }, []);
@@ -81,21 +119,30 @@ export default function HoursSetup() {
         }
     };
 
-    const handleOpenAll = () => {
-        setSchedule(prev => {
-            const updated = { ...prev };
-            DAYS.forEach(day => {
-                updated[day] = { ...updated[day], isOpen: true };
+    const handleQuickAction = (action) => {
+        if (action === 'openAll') {
+            setSchedule(prev => {
+                const updated = { ...prev };
+                DAYS.forEach(day => {
+                    updated[day] = { ...updated[day], isOpen: true };
+                });
+                return updated;
             });
-            return updated;
-        });
-    };
-
-    const handleCloseFridays = () => {
-        setSchedule(prev => ({
-            ...prev,
-            Friday: { ...prev.Friday, isOpen: false }
-        }));
+        } else if (action === 'closeWeekends') {
+            setSchedule(prev => ({
+                ...prev,
+                Saturday: { ...prev.Saturday, isOpen: false },
+                Sunday: { ...prev.Sunday, isOpen: false }
+            }));
+        } else if (action === 'standardHours') {
+            setSchedule(prev => {
+                const updated = { ...prev };
+                DAYS.forEach(day => {
+                    updated[day] = { ...updated[day], open: '09:00', close: '21:00' };
+                });
+                return updated;
+            });
+        }
     };
 
     const handleNext = async () => {
@@ -114,19 +161,30 @@ export default function HoursSetup() {
         setLoading(false);
     };
 
+    const formatTime = (time) => {
+        const [hours, minutes] = time.split(':');
+        const hour = parseInt(hours);
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const displayHour = hour % 12 || 12;
+        return `${displayHour}:${minutes} ${ampm}`;
+    };
+
     const styles = StyleSheet.create({
-        safeArea: {
+        container: {
             flex: 1,
-            backgroundColor: theme.surface,
+            backgroundColor: theme.background,
         },
-        header: {
+        scrollContent: {
+            paddingBottom: hp('18%'),
+        },
+        
+        // Header Section
+        headerSection: {
             paddingHorizontal: spacing.lg,
-            paddingBottom: spacing.lg,
-            backgroundColor: theme.surface,
-            zIndex: 10,
+            paddingTop: spacing.md,
+            paddingBottom: spacing.md,
         },
         title: {
-            marginTop: spacing.sm,
             fontSize: fontSize.title,
             fontWeight: fontWeight.bold,
             color: theme.textPrimary,
@@ -136,68 +194,105 @@ export default function HoursSetup() {
         subtitle: {
             fontSize: fontSize.body,
             color: theme.textSecondary,
-            lineHeight: fontSize.body * 1.5,
+            lineHeight: hp('2.8%'),
         },
-        listContainer: {
+        
+        // Quick Actions
+        quickActionsSection: {
             paddingHorizontal: spacing.lg,
-            paddingTop: spacing.md,
-            paddingBottom: hp('20%'),
+            marginBottom: spacing.lg,
+        },
+        quickActionsLabel: {
+            fontSize: fontSize.caption,
+            fontWeight: fontWeight.bold,
+            color: theme.textMuted,
+            marginBottom: spacing.sm,
+            textTransform: 'uppercase',
+            letterSpacing: 1,
+        },
+        quickActionsRow: {
+            flexDirection: 'row',
+            gap: spacing.sm,
+        },
+        quickActionBtn: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: theme.surface,
+            paddingVertical: spacing.sm,
+            paddingHorizontal: spacing.md,
+            borderRadius: radius.pill,
+            borderWidth: 1,
+            borderColor: theme.border,
+            gap: spacing.xs,
+        },
+        quickActionText: {
+            fontSize: fontSize.caption,
+            color: theme.textPrimary,
+            fontWeight: fontWeight.medium,
+        },
+        
+        // Schedule Section
+        scheduleSection: {
+            paddingHorizontal: spacing.lg,
+        },
+        scheduleCard: {
+            backgroundColor: theme.surface,
+            borderRadius: radius.xl,
+            padding: spacing.md,
+            ...shadows.soft,
         },
         dayRow: {
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'space-between',
-            backgroundColor: theme.surface,
             paddingVertical: spacing.md,
-            paddingHorizontal: spacing.md,
-            borderRadius: radius.md,
-            marginBottom: spacing.sm,
-            ...shadows.soft,
+            borderBottomWidth: 1,
+            borderBottomColor: theme.border,
+        },
+        dayRowLast: {
+            borderBottomWidth: 0,
         },
         dayLeft: {
             flexDirection: 'row',
             alignItems: 'center',
-            flex: 1,
+            gap: spacing.sm,
+            marginRight: spacing.md,
         },
         dayLabel: {
             fontSize: fontSize.body,
-            fontWeight: fontWeight.medium,
+            fontWeight: fontWeight.semibold,
             color: theme.textPrimary,
-            width: wp('15%'),
+            minWidth: wp('12%'),
+        },
+        dayLabelClosed: {
+            color: theme.textMuted,
         },
         rowRight: {
             flexDirection: 'row',
             alignItems: 'center',
             gap: spacing.sm,
-            flex: 1,
-            justifyContent: 'flex-end'
+        },
+        timeContainer: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.xs,
         },
         timeBox: {
-            backgroundColor: theme.surfaceAlt,
+            backgroundColor: `${theme.primary}10`,
             borderRadius: radius.md,
-            paddingVertical: spacing.sm,
-            paddingHorizontal: spacing.md,
-            minWidth: 90,
+            paddingVertical: spacing.xs,
+            paddingHorizontal: spacing.sm,
+            minWidth: wp('18%'),
             alignItems: 'center',
-            borderWidth: 1,
-            borderColor: theme.border,
-        },
-        timeBoxActive: {
-            backgroundColor: theme.primary + '15',
-            borderColor: theme.primary,
         },
         timeText: {
             fontSize: fontSize.caption,
-            color: theme.textPrimary,
-            fontWeight: fontWeight.medium
+            color: theme.primary,
+            fontWeight: fontWeight.semibold,
         },
-        timeTextClosed: {
+        timeDash: {
             color: theme.textMuted,
-        },
-        dash: {
-            color: theme.textSecondary,
             fontSize: fontSize.body,
-            marginHorizontal: spacing.xs,
         },
         closedBadge: {
             backgroundColor: theme.surfaceAlt,
@@ -210,33 +305,43 @@ export default function HoursSetup() {
             color: theme.textMuted,
             fontWeight: fontWeight.medium,
         },
-        helperButtons: {
-            flexDirection: 'row',
-            gap: spacing.md,
-            marginTop: spacing.xl,
-            marginBottom: spacing.lg
-        },
-        helperButton: {
-            backgroundColor: theme.surfaceAlt,
-            paddingVertical: spacing.sm,
+        
+        // Summary Section
+        summarySection: {
             paddingHorizontal: spacing.lg,
-            borderRadius: radius.pill,
-            borderWidth: 1,
-            borderColor: theme.border,
+            marginTop: spacing.lg,
         },
-        helperButtonActive: {
-            backgroundColor: theme.primary + '15',
-            borderColor: theme.primary,
+        summaryCard: {
+            backgroundColor: isDarkMode ? theme.surfaceAlt : '#E8F5E9',
+            borderRadius: radius.xl,
+            padding: spacing.lg,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.md,
         },
-        helperButtonText: {
-            fontSize: fontSize.caption,
+        summaryIconContainer: {
+            width: hp('5%'),
+            height: hp('5%'),
+            borderRadius: hp('2.5%'),
+            backgroundColor: `${theme.primary}20`,
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        summaryContent: {
+            flex: 1,
+        },
+        summaryTitle: {
+            fontSize: fontSize.body,
+            fontWeight: fontWeight.bold,
             color: theme.textPrimary,
-            fontWeight: fontWeight.medium
+            marginBottom: spacing.xs / 2,
         },
-        helperButtonTextActive: {
-            color: theme.primary,
-            fontWeight: fontWeight.semibold,
+        summaryText: {
+            fontSize: fontSize.caption,
+            color: theme.textSecondary,
         },
+        
+        // Footer
         footer: {
             position: 'absolute',
             bottom: 0,
@@ -247,83 +352,169 @@ export default function HoursSetup() {
             paddingTop: spacing.md,
             paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.lg,
             borderTopWidth: 1,
-            borderTopColor: theme.surfaceAlt,
+            borderTopColor: theme.border,
             flexDirection: 'row',
-            gap: spacing.md
+            gap: spacing.md,
+            ...shadows.floating,
         },
-        nextButton: {
-            shadowColor: theme.primary,
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.25,
-            shadowRadius: 16,
-            elevation: 8,
-        }
     });
 
+    const openDaysCount = Object.values(schedule).filter(s => s.isOpen).length;
+
     return (
-        <View style={styles.safeArea}>
-            <View style={styles.header}>
-                <View style={{ marginTop: spacing.sm }}>
+        <View style={styles.container}>
+            <ScrollView 
+                contentContainerStyle={styles.scrollContent} 
+                showsVerticalScrollIndicator={false}
+            >
+                {/* Header */}
+                <Animated.View 
+                    style={[
+                        styles.headerSection,
+                        {
+                            opacity: fadeAnim,
+                            transform: [{ translateY: slideAnim }]
+                        }
+                    ]}
+                >
                     <Text style={styles.title}>Operating Hours</Text>
-                    <Text style={styles.subtitle}>When are you open for business?</Text>
-                </View>
-            </View>
+                    <Text style={styles.subtitle}>
+                        Let customers know when you're open 
+                    </Text>
+                </Animated.View>
 
-            <ScrollView contentContainerStyle={styles.listContainer} showsVerticalScrollIndicator={false}>
-                {DAYS.map((day) => (
-                    <View key={day} style={styles.dayRow}>
-                        <View style={styles.dayLeft}>
-                            <Text style={styles.dayLabel}>{day.substring(0, 3)}</Text>
-                            <CustomToggle
-                                value={schedule[day].isOpen}
-                                onValueChange={() => toggleDay(day)}
-                            />
-                        </View>
+                {/* Quick Actions */}
+                <Animated.View 
+                    style={[
+                        styles.quickActionsSection,
+                        { opacity: fadeAnim }
+                    ]}
+                >
+                    <Text style={styles.quickActionsLabel}>Quick Actions</Text>
+                    <ScrollView 
+                        horizontal 
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.quickActionsRow}
+                    >
+                        <TouchableOpacity 
+                            style={styles.quickActionBtn}
+                            onPress={() => handleQuickAction('openAll')}
+                            activeOpacity={0.7}
+                        >
+                            <Ionicons name="checkmark-circle" size={hp('1.8%')} color={theme.success} />
+                            <Text style={styles.quickActionText}>Open All Days</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                            style={styles.quickActionBtn}
+                            onPress={() => handleQuickAction('closeWeekends')}
+                            activeOpacity={0.7}
+                        >
+                            <Ionicons name="moon" size={hp('1.8%')} color={theme.warning} />
+                            <Text style={styles.quickActionText}>Close Weekends</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                            style={styles.quickActionBtn}
+                            onPress={() => handleQuickAction('standardHours')}
+                            activeOpacity={0.7}
+                        >
+                            <Ionicons name="time" size={hp('1.8%')} color={theme.info} />
+                            <Text style={styles.quickActionText}>9AM - 9PM </Text>
+                        </TouchableOpacity>
+                    </ScrollView>
+                </Animated.View>
 
-                        {schedule[day].isOpen ? (
-                            <View style={styles.rowRight}>
-                                <TouchableOpacity
-                                    style={[styles.timeBox, styles.timeBoxActive]}
-                                    onPress={() => openTimePicker(day, 'open')}
-                                    activeOpacity={0.7}
+                {/* Schedule */}
+                <View style={styles.scheduleSection}>
+                    <View style={styles.scheduleCard}>
+                        {DAYS.map((day, index) => (
+                            <Animated.View
+                                key={day}
+                                style={{
+                                    opacity: dayAnims[index],
+                                    transform: [{
+                                        translateX: dayAnims[index].interpolate({
+                                            inputRange: [0, 1],
+                                            outputRange: [-20, 0]
+                                        })
+                                    }]
+                                }}
+                            >
+                                <View 
+                                    style={[
+                                        styles.dayRow,
+                                        index === DAYS.length - 1 && styles.dayRowLast
+                                    ]}
                                 >
-                                    <Text style={styles.timeText}>{schedule[day].open}</Text>
-                                </TouchableOpacity>
-                                <Text style={styles.dash}>-</Text>
-                                <TouchableOpacity
-                                    style={[styles.timeBox, styles.timeBoxActive]}
-                                    onPress={() => openTimePicker(day, 'close')}
-                                    activeOpacity={0.7}
-                                >
-                                    <Text style={styles.timeText}>{schedule[day].close}</Text>
-                                </TouchableOpacity>
-                            </View>
-                        ) : (
-                            <View style={styles.closedBadge}>
-                                <Text style={styles.closedBadgeText}>Closed</Text>
-                            </View>
-                        )}
+                                    <View style={styles.dayLeft}>
+                                        <Text style={[
+                                            styles.dayLabel,
+                                            !schedule[day].isOpen && styles.dayLabelClosed
+                                        ]}>
+                                            {DAY_ABBREV[index]}
+                                        </Text>
+                                        <CustomToggle
+                                            value={schedule[day].isOpen}
+                                            onValueChange={() => toggleDay(day)}
+                                        />
+                                    </View>
+
+                                    {schedule[day].isOpen ? (
+                                        <View style={styles.timeContainer}>
+                                            <TouchableOpacity
+                                                style={styles.timeBox}
+                                                onPress={() => openTimePicker(day, 'open')}
+                                                activeOpacity={0.7}
+                                            >
+                                                <Text style={styles.timeText}>
+                                                    {formatTime(schedule[day].open)}
+                                                </Text>
+                                            </TouchableOpacity>
+                                            <Text style={styles.timeDash}>—</Text>
+                                            <TouchableOpacity
+                                                style={styles.timeBox}
+                                                onPress={() => openTimePicker(day, 'close')}
+                                                activeOpacity={0.7}
+                                            >
+                                                <Text style={styles.timeText}>
+                                                    {formatTime(schedule[day].close)}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    ) : (
+                                        <View style={styles.closedBadge}>
+                                            <Text style={styles.closedBadgeText}>Closed</Text>
+                                        </View>
+                                    )}
+                                </View>
+                            </Animated.View>
+                        ))}
                     </View>
-                ))}
-
-                <View style={styles.helperButtons}>
-                    <TouchableOpacity
-                        style={styles.helperButton}
-                        onPress={handleOpenAll}
-                        activeOpacity={0.7}
-                    >
-                        <Text style={styles.helperButtonText}>Open All</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.helperButton}
-                        onPress={handleCloseFridays}
-                        activeOpacity={0.7}
-                    >
-                        <Text style={styles.helperButtonText}>Close Fridays</Text>
-                    </TouchableOpacity>
                 </View>
+
+                {/* Summary */}
+                <Animated.View 
+                    style={[
+                        styles.summarySection,
+                        { opacity: fadeAnim }
+                    ]}
+                >
+                    <View style={styles.summaryCard}>
+                        <View style={styles.summaryIconContainer}>
+                            <Ionicons name="calendar" size={hp('2.2%')} color={theme.primary} />
+                        </View>
+                        <View style={styles.summaryContent}>
+                            <Text style={styles.summaryTitle}>
+                                Open {openDaysCount} day{openDaysCount !== 1 ? 's' : ''} a week
+                            </Text>
+                            <Text style={styles.summaryText}>
+                                Tap on times to adjust your schedule
+                            </Text>
+                        </View>
+                    </View>
+                </Animated.View>
             </ScrollView>
 
+            {/* Footer */}
             <View style={styles.footer}>
                 <Button
                     title="Back"
@@ -332,10 +523,13 @@ export default function HoursSetup() {
                     style={{ flex: 1 }}
                 />
                 <Button
-                    title={isEditMode ? "Save" : "Continue"}
+                    title={isEditMode ? "Save Changes" : "Continue"}
                     onPress={handleNext}
                     loading={loading}
-                    style={[styles.nextButton, { flex: 2 }]}
+                    style={{ flex: 2 }}
+                    icon={!loading && (
+                        <Ionicons name="arrow-forward" size={hp('2%')} color="#fff" />
+                    )}
                 />
             </View>
 

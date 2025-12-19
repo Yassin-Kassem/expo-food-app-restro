@@ -1,5 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+    View, 
+    Text, 
+    ScrollView, 
+    StyleSheet, 
+    TouchableOpacity, 
+    Platform,
+    Animated,
+    ActivityIndicator
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { useRouter } from 'expo-router';
@@ -9,16 +18,17 @@ import { spacing, fontSize, fontWeight, radius, shadows } from '../../../constan
 import Button from '../../../components/Button';
 import Input from '../../../components/Input';
 import CustomModal from '../../../components/CustomModal';
-import ProgressIndicator from '../../../components/ProgressIndicator';
 import { updateRestaurant, getRestaurantByOwner } from '../../../services/restaurantService';
 import { getCurrentUser } from '../../../services/authService';
 import { getUserData } from '../../../services/userService';
 
 export default function LocationSetup() {
-    const { theme } = useTheme();
+    const { theme, isDarkMode } = useTheme();
     const router = useRouter();
 
     const [address, setAddress] = useState('');
+    const [city, setCity] = useState('');
+    const [postalCode, setPostalCode] = useState('');
     const [location, setLocation] = useState(null);
     const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
@@ -31,7 +41,48 @@ export default function LocationSetup() {
         type: 'info'
     });
 
+    // Animations
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(30)).current;
+    const mapAnim = useRef(new Animated.Value(0)).current;
+    const pulseAnim = useRef(new Animated.Value(1)).current;
+
     useEffect(() => {
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 500,
+                useNativeDriver: true,
+            }),
+            Animated.spring(slideAnim, {
+                toValue: 0,
+                friction: 8,
+                useNativeDriver: true,
+            }),
+            Animated.timing(mapAnim, {
+                toValue: 1,
+                duration: 600,
+                delay: 200,
+                useNativeDriver: true,
+            }),
+        ]).start();
+
+        // Pulse animation for location button
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(pulseAnim, {
+                    toValue: 1.05,
+                    duration: 1000,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(pulseAnim, {
+                    toValue: 1,
+                    duration: 1000,
+                    useNativeDriver: true,
+                }),
+            ])
+        ).start();
+
         checkEditMode();
         loadData();
     }, []);
@@ -52,6 +103,8 @@ export default function LocationSetup() {
         if (existingRestaurant.success) {
             const data = existingRestaurant.data;
             if (data.address) setAddress(data.address);
+            if (data.city) setCity(data.city);
+            if (data.postalCode) setPostalCode(data.postalCode);
             if (data.location) setLocation(data.location);
         }
     };
@@ -64,11 +117,12 @@ export default function LocationSetup() {
     const getCurrentLocation = async () => {
         setGettingLocation(true);
         const hasPermission = await requestLocationPermission();
+        
         if (!hasPermission) {
             setModalConfig({
                 visible: true,
                 title: 'Permission Required',
-                message: 'We need your permission to access your location to help customers find you.',
+                message: 'We need location permission to help customers find your restaurant. Please enable it in your device settings.',
                 type: 'warning'
             });
             setGettingLocation(false);
@@ -76,22 +130,25 @@ export default function LocationSetup() {
         }
 
         try {
-            const currentLocation = await Location.getCurrentPositionAsync({});
+            const currentLocation = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.High,
+            });
             const { latitude, longitude } = currentLocation.coords;
             setLocation({ lat: latitude, lng: longitude });
 
-            // Mock address for demo purposes if geocoding fails or just to show something nice
             const addressResults = await Location.reverseGeocodeAsync({ latitude, longitude });
             if (addressResults.length > 0) {
                 const addr = addressResults[0];
-                const formattedAddress = `${addr.street || ''}, ${addr.city || ''}, ${addr.region || ''} ${addr.postalCode || ''}`.trim();
-                setAddress(formattedAddress);
+                const streetAddress = [addr.streetNumber, addr.street].filter(Boolean).join(' ');
+                setAddress(streetAddress || addr.name || '');
+                setCity(addr.city || addr.subregion || '');
+                setPostalCode(addr.postalCode || '');
             }
         } catch (error) {
             setModalConfig({
                 visible: true,
                 title: 'Location Error',
-                message: 'We could not fetch your location. Please enter it manually.',
+                message: 'We couldn\'t detect your location. Please enter your address manually.',
                 type: 'error'
             });
         }
@@ -99,18 +156,28 @@ export default function LocationSetup() {
     };
 
     const handleNext = async () => {
-        if (!address) {
-            setErrors({ address: 'Address is required' });
+        const newErrors = {};
+        if (!address.trim()) newErrors.address = 'Street address is required';
+        if (!city.trim()) newErrors.city = 'City is required';
+        
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
             return;
         }
+
         setLoading(true);
         const user = getCurrentUser();
         const restaurantResult = await getRestaurantByOwner(user.uid);
 
         if (restaurantResult.success) {
-            await updateRestaurant(restaurantResult.data.id, { location, address });
+            const fullAddress = [address, city, postalCode].filter(Boolean).join(', ');
+            await updateRestaurant(restaurantResult.data.id, { 
+                location, 
+                address: fullAddress,
+                city,
+                postalCode
+            });
             
-            // If in edit mode, go back to settings; otherwise continue onboarding
             if (isEditMode) {
                 router.back();
             } else {
@@ -121,15 +188,22 @@ export default function LocationSetup() {
     };
 
     const styles = StyleSheet.create({
-        safeArea: {
+        container: {
             flex: 1,
-            backgroundColor: theme.surface,
+            backgroundColor: theme.background,
         },
-        header: {
+        scrollContainer: {
+            flex: 1,
+        },
+        scrollContent: {
+            paddingBottom: hp('18%'),
+        },
+        
+        // Header Section
+        headerSection: {
             paddingHorizontal: spacing.lg,
+            paddingTop: spacing.md,
             paddingBottom: spacing.lg,
-            backgroundColor: theme.surface,
-            zIndex: 10,
         },
         title: {
             fontSize: fontSize.title,
@@ -141,43 +215,73 @@ export default function LocationSetup() {
         subtitle: {
             fontSize: fontSize.body,
             color: theme.textSecondary,
-            lineHeight: fontSize.body * 1.5,
+            lineHeight: hp('2.8%'),
         },
-        scrollContainer: {
-            flex: 1,
-        },
-        scrollContent: {
+        
+        // Map Preview Section
+        mapSection: {
             paddingHorizontal: spacing.lg,
-            paddingTop: spacing.md,
-            paddingBottom: hp('15%'),
+            marginBottom: spacing.lg,
         },
         mapPreview: {
-            height: hp('22%'),
-            backgroundColor: theme.surfaceAlt,
+            height: hp('20%'),
+            backgroundColor: isDarkMode ? theme.surfaceAlt : '#E8F5E9',
             borderRadius: radius.xl,
-            marginBottom: spacing.lg,
             justifyContent: 'center',
             alignItems: 'center',
             overflow: 'hidden',
-            // Premium Shadow
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.1,
-            shadowRadius: 12,
-            elevation: 4,
+            ...shadows.soft,
+        },
+        mapGradient: {
+            ...StyleSheet.absoluteFillObject,
+            opacity: 0.1,
+        },
+        mapIconContainer: {
+            alignItems: 'center',
         },
         mapIconCircle: {
-            width: 64,
-            height: 64,
-            borderRadius: 32,
-            backgroundColor: '#FFFFFF',
+            width: hp('8%'),
+            height: hp('8%'),
+            borderRadius: hp('4%'),
+            backgroundColor: theme.surface,
             justifyContent: 'center',
             alignItems: 'center',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.1,
-            shadowRadius: 8,
-            elevation: 4,
+            marginBottom: spacing.sm,
+            ...shadows.medium,
+        },
+        mapIconInner: {
+            width: hp('6%'),
+            height: hp('6%'),
+            borderRadius: hp('3%'),
+            backgroundColor: `${theme.primary}15`,
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        mapLabel: {
+            fontSize: fontSize.caption,
+            color: theme.textSecondary,
+            fontWeight: fontWeight.medium,
+        },
+        locationDetected: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: `${theme.success}15`,
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.xs,
+            borderRadius: radius.pill,
+            gap: spacing.xs,
+            marginTop: spacing.sm,
+        },
+        locationDetectedText: {
+            fontSize: fontSize.caption,
+            color: theme.success,
+            fontWeight: fontWeight.semibold,
+        },
+        
+        // Location Button
+        locationBtnContainer: {
+            paddingHorizontal: spacing.lg,
+            marginBottom: spacing.xl,
         },
         locationBtn: {
             flexDirection: 'row',
@@ -185,17 +289,60 @@ export default function LocationSetup() {
             justifyContent: 'center',
             paddingVertical: spacing.md,
             borderRadius: radius.lg,
-            backgroundColor: theme.surface,
-            borderWidth: 1.5,
+            backgroundColor: `${theme.primary}10`,
+            borderWidth: 2,
             borderColor: theme.primary,
-            marginBottom: spacing.xl,
             gap: spacing.sm,
+        },
+        locationBtnActive: {
+            backgroundColor: theme.primary,
         },
         locationBtnText: {
             color: theme.primary,
             fontWeight: fontWeight.bold,
             fontSize: fontSize.body,
         },
+        locationBtnTextActive: {
+            color: '#fff',
+        },
+        
+        // Form Section
+        formSection: {
+            paddingHorizontal: spacing.lg,
+        },
+        formCard: {
+            backgroundColor: theme.surface,
+            borderRadius: radius.xl,
+            padding: spacing.lg,
+            ...shadows.soft,
+        },
+        formTitle: {
+            fontSize: fontSize.caption,
+            fontWeight: fontWeight.bold,
+            color: theme.textMuted,
+            marginBottom: spacing.md,
+            textTransform: 'uppercase',
+            letterSpacing: 1,
+        },
+        dividerContainer: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginVertical: spacing.lg,
+            paddingHorizontal: spacing.lg,
+        },
+        dividerLine: {
+            flex: 1,
+            height: 1,
+            backgroundColor: theme.border,
+        },
+        dividerText: {
+            color: theme.textMuted,
+            fontSize: fontSize.caption,
+            fontWeight: fontWeight.medium,
+            paddingHorizontal: spacing.md,
+        },
+        
+        // Footer
         footer: {
             position: 'absolute',
             bottom: 0,
@@ -206,82 +353,176 @@ export default function LocationSetup() {
             paddingTop: spacing.md,
             paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.lg,
             borderTopWidth: 1,
-            borderTopColor: theme.surfaceAlt,
+            borderTopColor: theme.border,
             flexDirection: 'row',
-            gap: spacing.md
+            gap: spacing.md,
+            ...shadows.floating,
         },
-        nextButton: {
-            shadowColor: theme.primary,
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.25,
-            shadowRadius: 16,
-            elevation: 8,
-        }
     });
 
     return (
-        <View style={styles.safeArea}>
-            <View style={styles.header}>
-                <View style={{ marginTop: spacing.sm }}>
-                    <Text style={styles.title}>Where are you located? </Text>
-                    <Text style={styles.subtitle}>Help customers find you. </Text>
-                </View>
-            </View>
+        <View style={styles.container}>
+            <ScrollView
+                style={styles.scrollContainer}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+            >
+                {/* Header */}
+                <Animated.View 
+                    style={[
+                        styles.headerSection,
+                        {
+                            opacity: fadeAnim,
+                            transform: [{ translateY: slideAnim }]
+                        }
+                    ]}
+                >
+                    <Text style={styles.title}>Where are you located?</Text>
+                    <Text style={styles.subtitle}>
+                        Help customers find your restaurant with an accurate address
+                    </Text>
+                </Animated.View>
 
-            <View style={styles.scrollContainer}>
-                <ScrollView
-                    contentContainerStyle={styles.scrollContent}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
+                {/* Map Preview */}
+                <Animated.View 
+                    style={[
+                        styles.mapSection,
+                        { opacity: mapAnim }
+                    ]}
                 >
                     <View style={styles.mapPreview}>
-                        <View style={styles.mapIconCircle}>
-                            <Ionicons name="map" size={32} color={theme.primary} />
+                        <View style={styles.mapIconContainer}>
+                            <View style={styles.mapIconCircle}>
+                                <View style={styles.mapIconInner}>
+                                    <Ionicons 
+                                        name="location" 
+                                        size={hp('2.5%')} 
+                                        color={theme.primary} 
+                                    />
+                                </View>
+                            </View>
+                            <Text style={styles.mapLabel}>
+                                {location ? 'Location detected' : 'Set your location '}
+                            </Text>
+                            {location && (
+                                <View style={styles.locationDetected}>
+                                    <Ionicons name="checkmark-circle" size={hp('1.6%')} color={theme.success} />
+                                    <Text style={styles.locationDetectedText}>Coordinates saved</Text>
+                                </View>
+                            )}
                         </View>
                     </View>
+                </Animated.View>
 
+                {/* Auto-detect Location Button */}
+                <Animated.View 
+                    style={[
+                        styles.locationBtnContainer,
+                        {
+                            opacity: fadeAnim,
+                            transform: [{ scale: pulseAnim }]
+                        }
+                    ]}
+                >
                     <TouchableOpacity
-                        style={styles.locationBtn}
+                        style={[
+                            styles.locationBtn,
+                            gettingLocation && styles.locationBtnActive
+                        ]}
                         onPress={getCurrentLocation}
                         disabled={gettingLocation}
-                        activeOpacity={0.7}
+                        activeOpacity={0.8}
                     >
-                        <Ionicons name={gettingLocation ? "hourglass-outline" : "navigate-circle-outline"} size={22} color={theme.primary} />
-                        <Text style={styles.locationBtnText}>{gettingLocation ? "Locating... " : "Use Current Location "}</Text>
+                        {gettingLocation ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                            <Ionicons 
+                                name="navigate-circle" 
+                                size={hp('2.5%')} 
+                                color={theme.primary} 
+                            />
+                        )}
+                        <Text style={[
+                            styles.locationBtnText,
+                            gettingLocation && styles.locationBtnTextActive
+                        ]}>
+                            {gettingLocation ? 'Detecting location...' : 'Use Current Location'}
+                        </Text>
                     </TouchableOpacity>
+                </Animated.View>
 
-                    <Input
-                        label="Full Address "
-                        placeholder="123 Main St, New York, NY "
-                        value={address}
-                        onChangeText={setAddress}
-                        error={errors.address}
-                        multiline
-                        numberOfLines={2}
-                    />
-                </ScrollView>
-            </View>
+                {/* Divider */}
+                <View style={styles.dividerContainer}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerText}>or enter manually</Text>
+                    <View style={styles.dividerLine} />
+                </View>
 
+                {/* Address Form */}
+                <Animated.View 
+                    style={[
+                        styles.formSection,
+                        {
+                            opacity: fadeAnim,
+                            transform: [{ translateY: slideAnim }]
+                        }
+                    ]}
+                >
+                    <View style={styles.formCard}>
+                        <Text style={styles.formTitle}>Address Details</Text>
+                        
+                        <Input
+                            label="Street Address"
+                            placeholder="e.g. 123 Main Street"
+                            value={address}
+                            onChangeText={setAddress}
+                            error={errors.address}
+                        />
+                        <Input
+                            label="City"
+                            placeholder="e.g. New York"
+                            value={city}
+                            onChangeText={setCity}
+                            error={errors.city}
+                        />
+                        <Input
+                            label="Postal Code (Optional)"
+                            placeholder="e.g. 10001"
+                            value={postalCode}
+                            onChangeText={setPostalCode}
+                            keyboardType="numeric"
+                        />
+                    </View>
+                </Animated.View>
+            </ScrollView>
+
+            {/* Footer */}
             <View style={styles.footer}>
                 <Button
-                    title="Back "
+                    title="Back"
                     onPress={() => router.back()}
                     variant="secondary"
                     style={{ flex: 1 }}
                 />
                 <Button
-                    title={isEditMode ? "Save" : "Continue"}
+                    title={isEditMode ? "Save Changes" : "Continue"}
                     onPress={handleNext}
                     loading={loading}
-                    style={[styles.nextButton, { flex: 2 }]}
+                    style={{ flex: 2 }}
+                    icon={!loading && (
+                        <Ionicons name="arrow-forward" size={hp('2%')} color="#fff" />
+                    )}
                 />
             </View>
 
+            {/* Modal */}
             <CustomModal
                 visible={modalConfig.visible}
                 type={modalConfig.type}
                 title={modalConfig.title}
                 message={modalConfig.message}
+                primaryButtonText="OK"
                 onPrimaryPress={() => setModalConfig(prev => ({ ...prev, visible: false }))}
                 onClose={() => setModalConfig(prev => ({ ...prev, visible: false }))}
             />

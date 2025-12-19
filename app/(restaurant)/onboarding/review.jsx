@@ -1,31 +1,73 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+    View, 
+    Text, 
+    ScrollView, 
+    StyleSheet, 
+    Platform,
+    Animated,
+    Image
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { spacing, fontSize, fontWeight, radius, shadows } from '../../../constants/theme';
 import Button from '../../../components/Button';
-import ProgressIndicator from '../../../components/ProgressIndicator';
 import CustomModal from '../../../components/CustomModal';
 import { getRestaurantByOwner, publishRestaurant } from '../../../services/restaurantService';
 import { getMenuItems } from '../../../services/menuService';
 import { getCurrentUser } from '../../../services/authService';
 
 export default function Review() {
-    const { theme } = useTheme();
+    const { theme, isDarkMode } = useTheme();
     const router = useRouter();
     const [restaurant, setRestaurant] = useState(null);
+    const [firstItem, setFirstItem] = useState(null);
     const [loading, setLoading] = useState(false);
     const [successModalVisible, setSuccessModalVisible] = useState(false);
 
-    useEffect(() => {
-        loadData();
-    }, []);
+    // Animations
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(30)).current;
+    const card1Anim = useRef(new Animated.Value(0)).current;
+    const card2Anim = useRef(new Animated.Value(0)).current;
+    const card3Anim = useRef(new Animated.Value(0)).current;
+    const confettiAnim = useRef(new Animated.Value(0)).current;
 
-    const [firstItem, setFirstItem] = useState(null);
-
     useEffect(() => {
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 500,
+                useNativeDriver: true,
+            }),
+            Animated.spring(slideAnim, {
+                toValue: 0,
+                friction: 8,
+                useNativeDriver: true,
+            }),
+        ]).start();
+
+        // Stagger card animations
+        Animated.stagger(150, [
+            Animated.spring(card1Anim, {
+                toValue: 1,
+                friction: 8,
+                useNativeDriver: true,
+            }),
+            Animated.spring(card2Anim, {
+                toValue: 1,
+                friction: 8,
+                useNativeDriver: true,
+            }),
+            Animated.spring(card3Anim, {
+                toValue: 1,
+                friction: 8,
+                useNativeDriver: true,
+            }),
+        ]).start();
+
         loadData();
     }, []);
 
@@ -45,6 +87,13 @@ export default function Review() {
         setLoading(true);
         const result = await publishRestaurant(restaurant.id, restaurant.ownerId);
         if (result.success) {
+            // Success animation
+            Animated.spring(confettiAnim, {
+                toValue: 1,
+                friction: 3,
+                useNativeDriver: true,
+            }).start();
+            
             setSuccessModalVisible(true);
         }
         setLoading(false);
@@ -55,16 +104,40 @@ export default function Review() {
         router.replace('/dashboard');
     };
 
+    const formatPrice = (price) => {
+        if (!price) return 'EGP 0.00';
+        return `EGP ${parseFloat(price).toFixed(2)}`;
+    };
+
+    const getOpenDaysCount = () => {
+        if (!restaurant?.hours) return 0;
+        return Object.values(restaurant.hours).filter(h => h.isOpen).length;
+    };
+
     const styles = StyleSheet.create({
-        safeArea: {
+        container: {
             flex: 1,
-            backgroundColor: theme.surface,
+            backgroundColor: theme.background,
         },
-        header: {
+        scrollContent: {
+            paddingBottom: hp('18%'),
+        },
+        
+        // Header Section
+        headerSection: {
             paddingHorizontal: spacing.lg,
+            paddingTop: spacing.md,
             paddingBottom: spacing.lg,
-            backgroundColor: theme.surface,
-            zIndex: 10,
+            alignItems: 'center',
+        },
+        celebrationIcon: {
+            width: hp('8%'),
+            height: hp('8%'),
+            borderRadius: hp('4%'),
+            backgroundColor: `${theme.primary}15`,
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginBottom: spacing.md,
         },
         title: {
             fontSize: fontSize.title,
@@ -72,29 +145,102 @@ export default function Review() {
             color: theme.textPrimary,
             letterSpacing: -0.5,
             marginBottom: spacing.xs,
+            textAlign: 'center',
         },
         subtitle: {
             fontSize: fontSize.body,
             color: theme.textSecondary,
-            lineHeight: fontSize.body * 1.5,
+            lineHeight: hp('2.8%'),
+            textAlign: 'center',
         },
-        scrollContent: {
+        
+        // Cards Section
+        cardsSection: {
             paddingHorizontal: spacing.lg,
-            paddingTop: spacing.md,
-            paddingBottom: hp('15%'),
         },
-        card: {
+        
+        // Restaurant Card
+        restaurantCard: {
+            backgroundColor: theme.surface,
+            borderRadius: radius.xl,
+            overflow: 'hidden',
+            marginBottom: spacing.lg,
+            ...shadows.medium,
+        },
+        restaurantBanner: {
+            height: hp('12%'),
+            backgroundColor: isDarkMode ? theme.surfaceAlt : '#E8F5E9',
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        restaurantBannerImage: {
+            width: '100%',
+            height: '100%',
+        },
+        restaurantLogoContainer: {
+            position: 'absolute',
+            bottom: -hp('4%'),
+            left: spacing.lg,
+            width: hp('8%'),
+            height: hp('8%'),
+            borderRadius: hp('4%'),
+            backgroundColor: theme.surface,
+            justifyContent: 'center',
+            alignItems: 'center',
+            borderWidth: 3,
+            borderColor: theme.surface,
+            ...shadows.soft,
+            overflow: 'hidden',
+        },
+        restaurantLogo: {
+            width: '100%',
+            height: '100%',
+        },
+        restaurantContent: {
+            padding: spacing.lg,
+            paddingTop: hp('5%'),
+        },
+        restaurantName: {
+            fontSize: fontSize.subtitle,
+            fontWeight: fontWeight.bold,
+            color: theme.textPrimary,
+            marginBottom: spacing.xs / 2,
+        },
+        restaurantAddress: {
+            fontSize: fontSize.caption,
+            color: theme.textSecondary,
+            marginBottom: spacing.sm,
+        },
+        restaurantDescription: {
+            fontSize: fontSize.body,
+            color: theme.textSecondary,
+            lineHeight: hp('2.5%'),
+            marginBottom: spacing.md,
+        },
+        categoriesContainer: {
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: spacing.xs,
+        },
+        categoryPill: {
+            backgroundColor: `${theme.primary}15`,
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.xs,
+            borderRadius: radius.pill,
+        },
+        categoryText: {
+            fontSize: fontSize.caption,
+            color: theme.primary,
+            fontWeight: fontWeight.medium,
+        },
+        
+        // Menu Item Card
+        menuItemCard: {
             backgroundColor: theme.surface,
             borderRadius: radius.xl,
             padding: spacing.lg,
             marginBottom: spacing.lg,
-            borderWidth: 1,
-            borderColor: theme.border,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.05,
-            shadowRadius: 8,
-            elevation: 2,
+            ...shadows.soft,
         },
         cardHeader: {
             flexDirection: 'row',
@@ -102,73 +248,154 @@ export default function Review() {
             marginBottom: spacing.md,
             gap: spacing.sm,
         },
-        iconContainer: {
-            width: 36,
-            height: 36,
+        cardIconContainer: {
+            width: hp('4%'),
+            height: hp('4%'),
             borderRadius: radius.md,
-            backgroundColor: '#FFF0ED',
+            backgroundColor: `${theme.primary}15`,
             justifyContent: 'center',
             alignItems: 'center',
         },
-        headerTitle: {
+        cardTitle: {
             fontSize: fontSize.caption,
-            color: theme.textSecondary,
-            fontWeight: fontWeight.medium,
+            color: theme.textMuted,
+            fontWeight: fontWeight.semibold,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
         },
-        itemContent: {
-            gap: spacing.xs,
-        },
-        itemRow: {
+        menuItemContent: {
             flexDirection: 'row',
-            justifyContent: 'space-between',
+            gap: spacing.md,
+        },
+        menuItemImage: {
+            width: hp('8%'),
+            height: hp('8%'),
+            borderRadius: radius.lg,
+            backgroundColor: theme.surfaceAlt,
+        },
+        menuItemImagePlaceholder: {
+            justifyContent: 'center',
             alignItems: 'center',
         },
-        itemName: {
-            fontSize: fontSize.subtitle,
+        menuItemDetails: {
+            flex: 1,
+        },
+        menuItemName: {
+            fontSize: fontSize.body,
             fontWeight: fontWeight.bold,
             color: theme.textPrimary,
+            marginBottom: spacing.xs / 2,
         },
-        itemPrice: {
+        menuItemDescription: {
+            fontSize: fontSize.caption,
+            color: theme.textSecondary,
+            marginBottom: spacing.xs,
+        },
+        menuItemPrice: {
             fontSize: fontSize.body,
             fontWeight: fontWeight.bold,
             color: theme.primary,
         },
-        itemDescription: {
-            fontSize: fontSize.caption,
-            color: theme.textSecondary,
-            lineHeight: 20,
-            marginBottom: spacing.xs,
+        
+        // Hours Card
+        hoursCard: {
+            backgroundColor: theme.surface,
+            borderRadius: radius.xl,
+            padding: spacing.lg,
+            marginBottom: spacing.lg,
+            ...shadows.soft,
         },
-        pill: {
-            backgroundColor: theme.surfaceAlt,
-            alignSelf: 'flex-start',
-            paddingHorizontal: spacing.md,
-            paddingVertical: 4,
-            borderRadius: radius.sm,
-            marginTop: spacing.xs,
+        hoursContent: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.md,
         },
-        pillText: {
-            fontSize: fontSize.caption * 0.9,
-            color: theme.textSecondary,
-            fontWeight: fontWeight.medium,
+        hoursIconContainer: {
+            width: hp('5%'),
+            height: hp('5%'),
+            borderRadius: hp('2.5%'),
+            backgroundColor: `${theme.success}15`,
+            justifyContent: 'center',
+            alignItems: 'center',
         },
-        infoCard: {
-            backgroundColor: '#FFF0ED',
-            borderColor: '#FFE0D6',
+        hoursDetails: {
+            flex: 1,
         },
-        infoHeader: {
-            marginBottom: spacing.sm,
-        },
-        infoTitle: {
+        hoursTitle: {
             fontSize: fontSize.body,
             fontWeight: fontWeight.bold,
             color: theme.textPrimary,
+            marginBottom: spacing.xs / 2,
         },
-        infoText: {
+        hoursText: {
             fontSize: fontSize.caption,
             color: theme.textSecondary,
-            lineHeight: 20,
         },
+        
+        // Ready Card
+        readyCard: {
+            backgroundColor: isDarkMode ? theme.surfaceAlt : '#E8F5E9',
+            borderRadius: radius.xl,
+            padding: spacing.lg,
+            marginBottom: spacing.lg,
+            borderWidth: 2,
+            borderColor: `${theme.primary}30`,
+        },
+        readyContent: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.md,
+        },
+        readyIconContainer: {
+            width: hp('5%'),
+            height: hp('5%'),
+            borderRadius: hp('2.5%'),
+            backgroundColor: theme.primary,
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        readyDetails: {
+            flex: 1,
+        },
+        readyTitle: {
+            fontSize: fontSize.body,
+            fontWeight: fontWeight.bold,
+            color: theme.textPrimary,
+            marginBottom: spacing.xs / 2,
+        },
+        readyText: {
+            fontSize: fontSize.caption,
+            color: theme.textSecondary,
+            lineHeight: hp('2.2%'),
+        },
+        
+        // Stats Row
+        statsRow: {
+            flexDirection: 'row',
+            gap: spacing.sm,
+            marginBottom: spacing.lg,
+        },
+        statCard: {
+            flex: 1,
+            backgroundColor: theme.surface,
+            borderRadius: radius.lg,
+            padding: spacing.md,
+            alignItems: 'center',
+            ...shadows.soft,
+        },
+        statValue: {
+            fontSize: fontSize.title,
+            fontWeight: fontWeight.bold,
+            color: theme.primary,
+            marginBottom: spacing.xs / 2,
+        },
+        statLabel: {
+            fontSize: fontSize.caption,
+            color: theme.textMuted,
+            fontWeight: fontWeight.medium,
+        },
+        
+        // Footer
         footer: {
             position: 'absolute',
             bottom: 0,
@@ -179,115 +406,228 @@ export default function Review() {
             paddingTop: spacing.md,
             paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.lg,
             borderTopWidth: 1,
-            borderTopColor: theme.surfaceAlt,
+            borderTopColor: theme.border,
             flexDirection: 'row',
-            gap: spacing.md
+            gap: spacing.md,
+            ...shadows.floating,
         },
-        publishButton: {
-            backgroundColor: theme.success,
-            shadowColor: theme.success,
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.3,
-            shadowRadius: 16,
-            elevation: 8,
-        }
     });
 
-    if (!restaurant) return null;
+    if (!restaurant) {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                <Text style={{ color: theme.textSecondary }}>Loading...</Text>
+            </View>
+        );
+    }
+
+    const cardAnimStyle = (anim) => ({
+        opacity: anim,
+        transform: [{
+            translateY: anim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [20, 0]
+            })
+        }]
+    });
 
     return (
-        <View style={styles.safeArea}>
-            <View style={styles.header}>
-                <View style={{ marginTop: spacing.md }}>
-                    <Text style={styles.title}>Ready to launch? </Text>
-                    <Text style={styles.subtitle}>Review your details before going live. </Text>
-                </View>
-            </View>
-
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
-                {/* Restaurant Preview Card */}
-                <View style={styles.card}>
-                    <View style={styles.cardHeader}>
-                        <View style={styles.iconContainer}>
-                            <Ionicons name="storefront-outline" size={20} color={theme.primary} />
-                        </View>
-                        <Text style={styles.headerTitle}>Restaurant Preview </Text>
-                    </View>
-
-                    <View style={styles.itemContent}>
-                        <Text style={styles.itemName}>{restaurant.name} </Text>
-                        <Text style={styles.infoText}>{restaurant.address} </Text>
-                        <Text style={[styles.itemDescription, { marginTop: spacing.xs }]} numberOfLines={2}>
-                            {restaurant.description}
-                        </Text>
-
-                        <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs }}>
-                            {restaurant.categories?.map((cat, idx) => (
-                                <View key={idx} style={styles.pill}>
-                                    <Text style={styles.pillText}>{cat} </Text>
-                                </View>
-                            ))}
-                        </View>
-                    </View>
-                </View>
-
-                {/* First Menu Item Card */}
-                <View style={styles.card}>
-                    <View style={styles.cardHeader}>
-                        <View style={styles.iconContainer}>
-                            <Ionicons name="restaurant-outline" size={20} color={theme.primary} />
-                        </View>
-                        <Text style={styles.headerTitle}>First Menu Item </Text>
-                    </View>
-
-                    <View style={styles.itemContent}>
-                        <View style={styles.itemRow}>
-                            <Text style={styles.itemName}>{firstItem?.name || 'Menu Item '} </Text>
-                            <Text style={styles.itemPrice}>${firstItem?.price || '0.00 '} </Text>
-                        </View>
-                        <Text style={styles.itemDescription} numberOfLines={2}>
-                            {firstItem?.description || 'No description provided '}
-                        </Text>
-                        <View style={styles.pill}>
-                            <Text style={styles.pillText}>Appetizers </Text>
-                        </View>
-                    </View>
-                </View>
-
-                {/* Ready to go live Card */}
-                <View style={[styles.card, styles.infoCard]}>
-                    <View style={styles.infoHeader}>
-                        <Text style={styles.infoTitle}>🎉 Ready to go live? </Text>
-                    </View>
-                    <Text style={styles.infoText}>
-                        Your restaurant will be visible to customers immediately. You can edit all details anytime from your dashboard.
+        <View style={styles.container}>
+            <ScrollView 
+                contentContainerStyle={styles.scrollContent} 
+                showsVerticalScrollIndicator={false}
+            >
+                {/* Header */}
+                <Animated.View 
+                    style={[
+                        styles.headerSection,
+                        {
+                            opacity: fadeAnim,
+                            transform: [{ translateY: slideAnim }]
+                        }
+                    ]}
+                >
+                    <Animated.View 
+                        style={[
+                            styles.celebrationIcon,
+                            {
+                                transform: [{
+                                    scale: confettiAnim.interpolate({
+                                        inputRange: [0, 1],
+                                        outputRange: [1, 1.2]
+                                    })
+                                }]
+                            }
+                        ]}
+                    >
+                        <Ionicons name="rocket" size={hp('3.5%')} color={theme.primary} />
+                    </Animated.View>
+                    <Text style={styles.title}>Ready to Launch! 🎉</Text>
+                    <Text style={styles.subtitle}>
+                        Review your restaurant details before going live
                     </Text>
-                </View>
+                </Animated.View>
 
+                <View style={styles.cardsSection}>
+                    {/* Stats Row */}
+                    <Animated.View style={[styles.statsRow, cardAnimStyle(card1Anim)]}>
+                        <View style={styles.statCard}>
+                            <Text style={styles.statValue}>{getOpenDaysCount()}</Text>
+                            <Text style={styles.statLabel}>Days Open</Text>
+                        </View>
+                        <View style={styles.statCard}>
+                            <Text style={styles.statValue}>1</Text>
+                            <Text style={styles.statLabel}>Menu Item</Text>
+                        </View>
+                        <View style={styles.statCard}>
+                            <Text style={styles.statValue}>{restaurant.categories?.length || 0}</Text>
+                            <Text style={styles.statLabel}>Cuisines</Text>
+                        </View>
+                    </Animated.View>
+
+                    {/* Restaurant Preview Card */}
+                    <Animated.View style={[styles.restaurantCard, cardAnimStyle(card1Anim)]}>
+                        <View style={styles.restaurantBanner}>
+                            {restaurant.bannerUrl ? (
+                                <Image 
+                                    source={{ uri: restaurant.bannerUrl }} 
+                                    style={styles.restaurantBannerImage}
+                                    resizeMode="cover"
+                                />
+                            ) : (
+                                <Ionicons name="storefront" size={hp('3%')} color={theme.textMuted} />
+                            )}
+                            <View style={styles.restaurantLogoContainer}>
+                                {restaurant.logoUrl ? (
+                                    <Image 
+                                        source={{ uri: restaurant.logoUrl }} 
+                                        style={styles.restaurantLogo}
+                                        resizeMode="cover"
+                                    />
+                                ) : (
+                                    <Ionicons name="restaurant" size={hp('2.5%')} color={theme.textMuted} />
+                                )}
+                            </View>
+                        </View>
+                        <View style={styles.restaurantContent}>
+                            <Text style={styles.restaurantName}>{restaurant.name}</Text>
+                            <Text style={styles.restaurantAddress}>{restaurant.address}</Text>
+                            <Text style={styles.restaurantDescription} numberOfLines={2}>
+                                {restaurant.description}
+                            </Text>
+                            <View style={styles.categoriesContainer}>
+                                {restaurant.categories?.map((cat, idx) => (
+                                    <View key={idx} style={styles.categoryPill}>
+                                        <Text style={styles.categoryText}>{cat}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                        </View>
+                    </Animated.View>
+
+                    {/* Menu Item Card */}
+                    <Animated.View style={[styles.menuItemCard, cardAnimStyle(card2Anim)]}>
+                        <View style={styles.cardHeader}>
+                            <View style={styles.cardIconContainer}>
+                                <Ionicons name="fast-food" size={hp('1.8%')} color={theme.primary} />
+                            </View>
+                            <Text style={styles.cardTitle}>First Menu Item</Text>
+                        </View>
+                        <View style={styles.menuItemContent}>
+                            {firstItem?.imageUrl ? (
+                                <Image 
+                                    source={{ uri: firstItem.imageUrl }} 
+                                    style={styles.menuItemImage}
+                                    resizeMode="cover"
+                                />
+                            ) : (
+                                <View style={[styles.menuItemImage, styles.menuItemImagePlaceholder]}>
+                                    <Ionicons name="image" size={hp('2%')} color={theme.textMuted} />
+                                </View>
+                            )}
+                            <View style={styles.menuItemDetails}>
+                                <Text style={styles.menuItemName}>
+                                    {firstItem?.name || 'No item added'}
+                                </Text>
+                                <Text style={styles.menuItemDescription} numberOfLines={1}>
+                                    {firstItem?.description || 'No description'}
+                                </Text>
+                                <Text style={styles.menuItemPrice}>
+                                    {formatPrice(firstItem?.price)}
+                                </Text>
+                            </View>
+                        </View>
+                    </Animated.View>
+
+                    {/* Hours Card */}
+                    <Animated.View style={[styles.hoursCard, cardAnimStyle(card2Anim)]}>
+                        <View style={styles.cardHeader}>
+                            <View style={styles.cardIconContainer}>
+                                <Ionicons name="time" size={hp('1.8%')} color={theme.primary} />
+                            </View>
+                            <Text style={styles.cardTitle}>Operating Hours</Text>
+                        </View>
+                        <View style={styles.hoursContent}>
+                            <View style={styles.hoursIconContainer}>
+                                <Ionicons name="calendar" size={hp('2%')} color={theme.success} />
+                            </View>
+                            <View style={styles.hoursDetails}>
+                                <Text style={styles.hoursTitle}>
+                                    Open {getOpenDaysCount()} days a week
+                                </Text>
+                                <Text style={styles.hoursText}>
+                                    Hours configured and ready
+                                </Text>
+                            </View>
+                            <Ionicons name="checkmark-circle" size={hp('2.5%')} color={theme.success} />
+                        </View>
+                    </Animated.View>
+
+                    {/* Ready Card */}
+                    <Animated.View style={[styles.readyCard, cardAnimStyle(card3Anim)]}>
+                        <View style={styles.readyContent}>
+                            <View style={styles.readyIconContainer}>
+                                <Ionicons name="checkmark" size={hp('2.5%')} color="#fff" />
+                            </View>
+                            <View style={styles.readyDetails}>
+                                <Text style={styles.readyTitle}>Ready to go live!</Text>
+                                <Text style={styles.readyText}>
+                                    Your restaurant will be visible to customers immediately. 
+                                    You can edit all details anytime from your dashboard.
+                                </Text>
+                            </View>
+                        </View>
+                    </Animated.View>
+                </View>
             </ScrollView>
 
+            {/* Footer */}
             <View style={styles.footer}>
                 <Button
-                    title="Back "
+                    title="Back"
                     onPress={() => router.back()}
                     variant="secondary"
                     style={{ flex: 1 }}
                 />
                 <Button
-                    title="Publish Restaurant "
+                    title="Publish Restaurant"
                     onPress={handlePublish}
                     loading={loading}
-                    style={[styles.publishButton, { flex: 2 }]}
+                    variant="success"
+                    style={{ flex: 2 }}
+                    icon={!loading && (
+                        <Ionicons name="rocket" size={hp('2%')} color="#fff" />
+                    )}
                 />
             </View>
 
+            {/* Success Modal */}
             <CustomModal
                 visible={successModalVisible}
-                title="Success"
-                message="Your restaurant is now live!"
+                title="Congratulations! 🎉"
+                message="Your restaurant is now live and ready to accept orders!"
                 type="success"
-                primaryButtonText="OK"
+                primaryButtonText="Go to Dashboard"
                 onPrimaryPress={handleSuccessClose}
                 onClose={handleSuccessClose}
             />

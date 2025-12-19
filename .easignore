@@ -40,11 +40,6 @@ yarn-error.*
 /ios
 /android
 
-# Google
-GoogleService-Info.plist
-google-services.json
-
-
 # Firebase Admin SDK credentials
 scripts/seed/serviceAccountKey.json
 **/serviceAccountKey.json

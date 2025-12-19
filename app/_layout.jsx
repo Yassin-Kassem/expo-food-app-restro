@@ -1,10 +1,20 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { useEffect, useState, useRef } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { View, ActivityIndicator, Platform } from 'react-native';
 import { ThemeProvider, useTheme } from '../contexts/ThemeContext';
 import { CartProvider } from '../contexts/CartContext';
 import { LocationProvider } from '../contexts/LocationContext';
 import { useAuth } from '../hooks/useAuth';
+import { NotificationProvider } from '../contexts/notificationsContext';
+import * as Notifications from 'expo-notifications';
+
+Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowAlert: true,
+    }),
+});
 
 function RootLayoutContent() {
     const { theme } = useTheme();
@@ -63,7 +73,7 @@ function RootLayoutContent() {
             // Authenticated but no user data - wait a moment before redirecting to role-select
             // This prevents race conditions during login when userData is still loading
             const onRoleSelect = segments[1] === 'role-select';
-            
+
             if (onRoleSelect) {
                 // Already on role-select, always allow it to show (fixes reload issue)
                 setNavigationReady(true);
@@ -148,12 +158,14 @@ function RootLayoutContent() {
 
 export default function RootLayout() {
     return (
-        <ThemeProvider>
-            <LocationProvider>
-                <CartProvider>
-                    <RootLayoutContent />
-                </CartProvider>
-            </LocationProvider>
-        </ThemeProvider>
+        <NotificationProvider>
+            <ThemeProvider>
+                <LocationProvider>
+                    <CartProvider>
+                        <RootLayoutContent />
+                    </CartProvider>
+                </LocationProvider>
+            </ThemeProvider>
+        </NotificationProvider>
     );
 }

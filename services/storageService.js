@@ -2,12 +2,18 @@ import { firebaseStorage } from '../config/firebase.config';
 import { logError } from '../utils/errorLogger';
 import { handleNetworkError } from '../utils/networkHandler';
 
-// FileSystem is optional - check if available
+// FileSystem is optional - use legacy API for Expo SDK 54+
 let FileSystem = null;
 try {
-    FileSystem = require('expo-file-system');
+    // Use the legacy API to avoid deprecation warnings
+    FileSystem = require('expo-file-system/legacy');
 } catch (e) {
-    // FileSystem not available - will skip file size check
+    // If legacy import fails, try the main module
+    try {
+        FileSystem = require('expo-file-system');
+    } catch (e2) {
+        // FileSystem not available - will skip file size check
+    }
 }
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -43,7 +49,7 @@ export const uploadImage = async (uri, { folder }) => {
         }
 
         // Validate file exists (if FileSystem is available)
-        if (FileSystem) {
+        if (FileSystem && FileSystem.getInfoAsync) {
             try {
                 const fileInfo = await FileSystem.getInfoAsync(uri);
                 if (!fileInfo.exists) {
@@ -66,7 +72,8 @@ export const uploadImage = async (uri, { folder }) => {
                 }
             } catch (fileSystemError) {
                 // If file system check fails, continue with upload
-                logError('FILESYSTEM_CHECK_ERROR', fileSystemError);
+                // Don't log this as an error since it's expected in some cases
+                console.log('FileSystem check skipped:', fileSystemError.message);
             }
         }
 
@@ -141,4 +148,3 @@ export const uploadImage = async (uri, { folder }) => {
         };
     }
 };
-

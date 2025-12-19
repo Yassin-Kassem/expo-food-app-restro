@@ -15,20 +15,26 @@ import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-nat
 import { useTheme } from '../../contexts/ThemeContext';
 import { useCart } from '../../contexts/CartContext';
 import { useLocation } from '../../contexts/LocationContext';
+import { useAuth } from '../../hooks/useAuth';
 import { spacing, fontSize, fontWeight, radius, shadows } from '../../constants/theme';
 import CustomModal from '../../components/CustomModal';
+import { createOrder } from '../../services/orderService';
 
 const CheckoutScreen = () => {
     const { theme } = useTheme();
     const router = useRouter();
     const { address: savedAddress } = useLocation();
+    const { user, userData } = useAuth();
     const { 
         items, 
+        restaurantId,
         restaurantName, 
+        restaurantImage,
         subtotal, 
         tax, 
         deliveryFee, 
         total,
+        estimatedTime,
         clearCart,
         itemCount,
     } = useCart();
@@ -53,6 +59,7 @@ const CheckoutScreen = () => {
     };
 
     const handlePlaceOrder = async () => {
+        // Validate inputs
         if (!deliveryAddress.trim()) {
             showModal('Missing Address', 'Please enter a delivery address');
             return;
@@ -61,24 +68,78 @@ const CheckoutScreen = () => {
             showModal('Missing Phone', 'Please enter your phone number');
             return;
         }
+        if (!user?.uid) {
+            showModal('Not Logged In', 'Please log in to place an order');
+            return;
+        }
+        if (!restaurantId || items.length === 0) {
+            showModal('Empty Cart', 'Your cart is empty');
+            return;
+        }
 
         setIsPlacingOrder(true);
 
-        // Simulate order placement
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        try {
+            // Create the order in Firestore
+            const orderData = {
+                // Customer info
+                customerId: user.uid,
+                customerName: userData?.name || userData?.email || 'Customer',
+                phoneNumber: phoneNumber.trim(),
+                
+                // Restaurant info
+                restaurantId,
+                restaurantName,
+                restaurantImage,
+                
+                // Order items
+                items: items.map(item => ({
+                    id: item.id,
+                    name: item.name,
+                    price: item.price,
+                    quantity: item.quantity,
+                    options: item.options || {},
+                    specialInstructions: item.specialInstructions || '',
+                })),
+                
+                // Pricing
+                subtotal,
+                tax,
+                deliveryFee,
+                total,
+                
+                // Delivery info
+                deliveryAddress: deliveryAddress.trim(),
+                specialInstructions: specialInstructions.trim(),
+                estimatedDeliveryTime: estimatedTime || 35,
+            };
 
-        // Clear cart and navigate to order tracking
-        clearCart();
-        
-        setIsPlacingOrder(false);
-        
-        router.replace({
-            pathname: '/(user)/order-tracking',
-            params: { 
-                orderId: 'ORDER-' + Date.now(),
-                success: 'true',
-            },
-        });
+            const result = await createOrder(orderData);
+
+            if (!result.success) {
+                setIsPlacingOrder(false);
+                showModal('Order Failed', result.error || 'Failed to place order. Please try again.');
+                return;
+            }
+
+            // Clear cart after successful order
+            clearCart();
+            
+            setIsPlacingOrder(false);
+            
+            // Navigate to order tracking with real order ID
+            router.replace({
+                pathname: '/(user)/order-tracking',
+                params: { 
+                    orderId: result.orderId,
+                    success: 'true',
+                },
+            });
+        } catch (error) {
+            console.error('Error placing order:', error);
+            setIsPlacingOrder(false);
+            showModal('Order Failed', 'Something went wrong. Please try again.');
+        }
     };
 
     return (

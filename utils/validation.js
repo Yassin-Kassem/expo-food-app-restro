@@ -133,15 +133,21 @@ export const validateMenuItemData = (data) => {
 
 /**
  * Validate order status transition
+ * 
+ * Order Flow: Pending → Preparing → Ready → Out for Delivery → Delivered
+ * Can be Cancelled at any active stage
  */
 export const validateOrderStatusTransition = (currentStatus, newStatus) => {
     const validTransitions = {
-        'Pending': ['Cooking', 'Declined'],
+        'Pending': ['Preparing', 'Cancelled'],        // Accept or Decline
+        'Preparing': ['Ready', 'Cancelled'],           // Mark ready or Cancel
+        'Ready': ['Out for Delivery', 'Cancelled'],    // Start delivery or Cancel
+        'Out for Delivery': ['Delivered', 'Cancelled'], // Complete or Cancel
+        'Delivered': [],                               // Final state
+        'Cancelled': [],                               // Final state
+        // Legacy support
         'Cooking': ['Ready', 'Cancelled'],
-        'Ready': ['Completed', 'Cancelled'],
-        'Declined': [],
-        'Cancelled': [],
-        'Completed': []
+        'Completed': [],
     };
     
     const allowedStatuses = validTransitions[currentStatus] || [];

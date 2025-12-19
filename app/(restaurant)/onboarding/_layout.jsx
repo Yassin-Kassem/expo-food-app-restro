@@ -1,20 +1,21 @@
-import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, Platform } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Stack, useSegments } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { StatusBar } from 'expo-status-bar';
 
 import { useTheme } from '../../../contexts/ThemeContext';
-import { spacing, fontSize, fontWeight, radius } from '../../../constants/theme';
+import { spacing, fontSize, fontWeight, radius, shadows } from '../../../constants/theme';
 import ProgressIndicator from '../../../components/ProgressIndicator';
 
 export default function OnboardingLayout() {
-    const { theme } = useTheme();
+    const { theme, isDarkMode } = useTheme();
     const segments = useSegments();
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(-20)).current;
 
     // Determine current step based on route
-    // segments example: ['(restaurant)', 'onboarding', 'business-info']
     const currentRoute = segments[segments.length - 1];
 
     let currentStep = 1;
@@ -23,17 +24,31 @@ export default function OnboardingLayout() {
     if (currentRoute === 'add-first-item') currentStep = 4;
     if (currentRoute === 'review') currentStep = 5;
 
+    useEffect(() => {
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 400,
+                useNativeDriver: true,
+            }),
+            Animated.spring(slideAnim, {
+                toValue: 0,
+                friction: 8,
+                useNativeDriver: true,
+            }),
+        ]).start();
+    }, []);
+
     const styles = StyleSheet.create({
         container: {
             flex: 1,
-            backgroundColor: theme.surface,
-            paddingTop: spacing.xl,
+            backgroundColor: theme.background,
         },
         headerContainer: {
             paddingHorizontal: spacing.lg,
-            paddingTop: spacing.xxl,
+            paddingTop: hp('6%'),
             paddingBottom: spacing.md,
-            backgroundColor: theme.surface,
+            backgroundColor: theme.background,
             zIndex: 100,
         },
         pillContainer: {
@@ -43,7 +58,7 @@ export default function OnboardingLayout() {
         pill: {
             flexDirection: 'row',
             alignItems: 'center',
-            backgroundColor: '#FFF0ED',
+            backgroundColor: `${theme.primary}15`,
             paddingHorizontal: spacing.md,
             paddingVertical: spacing.xs,
             borderRadius: radius.pill,
@@ -51,28 +66,40 @@ export default function OnboardingLayout() {
         },
         pillText: {
             color: theme.primary,
-            fontWeight: fontWeight.medium,
+            fontWeight: fontWeight.semibold,
             fontSize: fontSize.caption
+        },
+        contentContainer: {
+            flex: 1,
+            backgroundColor: theme.background,
         }
     });
 
     return (
         <View style={styles.container}>
-            <StatusBar style="dark" />
-            <View style={styles.headerContainer}>
+            <StatusBar style={isDarkMode ? "light" : "dark"} />
+            <Animated.View 
+                style={[
+                    styles.headerContainer,
+                    {
+                        opacity: fadeAnim,
+                        transform: [{ translateY: slideAnim }]
+                    }
+                ]}
+            >
                 <View style={styles.pillContainer}>
                     <View style={styles.pill}>
-                        <Ionicons name="restaurant-outline" size={14} color={theme.primary} />
-                        <Text style={styles.pillText}>Restaurant Setup </Text>
+                        <Ionicons name="storefront" size={hp('1.6%')} color={theme.primary} />
+                        <Text style={styles.pillText}>Restaurant Setup</Text>
                     </View>
                 </View>
                 <ProgressIndicator currentStep={currentStep} totalSteps={5} />
-            </View>
-            <View style={{ flex: 1 }}>
+            </Animated.View>
+            <View style={styles.contentContainer}>
                 <Stack screenOptions={{
                     headerShown: false,
                     animation: 'slide_from_right',
-                    contentStyle: { backgroundColor: theme.surface }
+                    contentStyle: { backgroundColor: theme.background }
                 }} />
             </View>
         </View>

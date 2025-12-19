@@ -15,6 +15,7 @@ import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-nat
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useLocation } from '../../../contexts/LocationContext';
 import { useCart } from '../../../contexts/CartContext';
+import { useAuth } from '../../../hooks/useAuth';
 import { spacing, fontSize, fontWeight, radius, shadows } from '../../../constants/theme';
 
 // Components
@@ -22,15 +23,18 @@ import HeroBanner from '../../../components/user/HeroBanner';
 import CategoryGrid from '../../../components/user/CategoryGrid';
 import RestaurantCard from '../../../components/user/RestaurantCard';
 import AddressModal from '../../../components/user/AddressModal';
+import ActiveOrderCard from '../../../components/user/ActiveOrderCard';
 import { HomeScreenSkeleton } from '../../../components/user/LoadingSkeleton';
 
 // Services
 import { getAllRestaurants } from '../../../services/customerRestaurantService';
+import { listenToActiveUserOrder } from '../../../services/orderService';
 
 const HomeScreen = () => {
     const { theme, isDarkMode } = useTheme();
     const { location, address, getCurrentLocation, hasLocation } = useLocation();
     const { itemCount } = useCart();
+    const { user } = useAuth();
     const router = useRouter();
 
     const [searchQuery, setSearchQuery] = useState('');
@@ -39,6 +43,7 @@ const HomeScreen = () => {
     const [loading, setLoading] = useState(true);
     const [restaurants, setRestaurants] = useState([]);
     const [showAddressModal, setShowAddressModal] = useState(false);
+    const [activeOrder, setActiveOrder] = useState(null);
 
     // Load restaurants from Firebase
     const loadRestaurants = useCallback(async () => {
@@ -71,6 +76,26 @@ const HomeScreen = () => {
             getCurrentLocation();
         }
     }, []);
+
+    // Listen to user's active order for the active order card
+    useEffect(() => {
+        if (!user?.uid) {
+            setActiveOrder(null);
+            return;
+        }
+
+        const unsubscribe = listenToActiveUserOrder(user.uid, (result) => {
+            if (result.success) {
+                setActiveOrder(result.data);
+            } else {
+                setActiveOrder(null);
+            }
+        });
+
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
+    }, [user?.uid]);
 
     const handleRefresh = async () => {
         setRefreshing(true);
@@ -172,6 +197,11 @@ const HomeScreen = () => {
                         )}
                     </TouchableOpacity>
                 </View>
+
+                {/* Active Order Card - shown when user has an active order */}
+                {activeOrder && (
+                    <ActiveOrderCard order={activeOrder} />
+                )}
 
                 {/* Search Bar */}
                 <TouchableOpacity 

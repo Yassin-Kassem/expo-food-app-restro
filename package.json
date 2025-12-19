@@ -3,9 +3,13 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "expo start",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
+    "start": "expo start --dev-client",
+    "start:tunnel": "expo start --dev-client --tunnel",
+    "start:clear": "expo start --dev-client --clear",
+    "android": "expo start --dev-client --android",
+    "android:build": "expo run:android",
+    "ios": "expo start --dev-client --ios",
+    "ios:build": "expo run:ios",
     "web": "expo start --web"
   },
   "dependencies": {
@@ -18,6 +22,7 @@
     "expo-build-properties": "^1.0.10",
     "expo-constants": "^18.0.12",
     "expo-dev-client": "~6.0.20",
+    "expo-device": "^8.0.10",
     "expo-image-picker": "~17.0.10",
     "expo-linear-gradient": "^15.0.8",
     "expo-linking": "^8.0.10",
@@ -34,5 +39,6 @@
     "react-native-screens": "~4.16.0",
     "react-native-webview": "^13.16.0"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {}
 }

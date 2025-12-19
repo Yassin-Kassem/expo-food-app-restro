@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { spacing, fontSize, fontWeight, radius, shadows } from '../../../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,7 +14,7 @@ import { useRestaurant } from '../../../hooks/useRestaurant';
 import { listenAppSettings, updateAppSettings } from '../../../services/settingsService';
 
 export default function SettingsScreen() {
-    const { theme } = useTheme();
+    const { theme, isDarkMode, toggleTheme } = useTheme();
     const router = useRouter();
     const { user } = useAuth();
     const { restaurant, loading: restaurantLoading } = useRestaurant(user?.uid);
@@ -254,6 +255,7 @@ export default function SettingsScreen() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+            <StatusBar style={isDarkMode ? "light" : "dark"} />
             <ScrollView 
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
@@ -293,6 +295,14 @@ export default function SettingsScreen() {
                         </SettingsSection>
 
                         <SettingsSection title="App Settings">
+                            <SettingsItem
+                                icon={isDarkMode ? "moon" : "sunny"}
+                                label="Dark Mode"
+                                value="Switch between light and dark theme"
+                                showToggle={true}
+                                toggleValue={isDarkMode}
+                                onToggleChange={toggleTheme}
+                            />
                             <SettingsItem
                                 icon="notifications-outline"
                                 label="Notifications"
