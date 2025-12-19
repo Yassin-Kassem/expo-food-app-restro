@@ -84,7 +84,7 @@ const CheckoutScreen = () => {
             const orderData = {
                 // Customer info
                 customerId: user.uid,
-                customerName: userData?.name || userData?.email || 'Customer',
+                customerName: userData?.displayName || userData?.name || user?.displayName || userData?.email || 'Customer',
                 phoneNumber: phoneNumber.trim(),
                 
                 // Restaurant info

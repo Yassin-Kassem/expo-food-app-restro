@@ -100,6 +100,7 @@ export default function RoleSelect() {
 
         const result = await createUserDocument(user.uid, selectedRole, {
             displayName: user.displayName,
+            name: user.displayName, // Store as 'name' for easier access
             email: user.email
         });
         if (!result.success) {

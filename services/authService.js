@@ -1,6 +1,7 @@
 import { firebaseAuth } from '../config/firebase.config';
 import { logError } from '../utils/errorLogger';
 import { handleNetworkError } from '../utils/networkHandler';
+import { removeUserPushToken } from './notificationService';
 
 /**
  * Sign in with email and password
@@ -125,6 +126,17 @@ export const signUp = async (email, password, fullName) => {
  */
 export const signOut = async () => {
     try {
+        const currentUser = firebaseAuth().currentUser;
+        const userId = currentUser?.uid;
+
+        // Remove push token from Firestore before signing out
+        if (userId) {
+            await removeUserPushToken(userId).catch((err) => {
+                // Log but don't fail logout if token removal fails
+                logError('REMOVE_TOKEN_ON_LOGOUT_ERROR', err, { userId });
+            });
+        }
+
         await firebaseAuth().signOut();
         return { success: true };
     } catch (error) {

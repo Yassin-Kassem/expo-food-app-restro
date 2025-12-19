@@ -7,6 +7,8 @@ import React, {
   } from "react";
   import * as Notifications from "expo-notifications";
   import { registerForPushNotificationsAsync } from "../utils/registerForPushNotificationsAsync";
+  import { saveUserPushToken } from "../services/notificationService";
+  import { useAuth } from "../hooks/useAuth";
   
   const NotificationContext = createContext(undefined);
   
@@ -24,13 +26,17 @@ import React, {
     const [expoPushToken, setExpoPushToken] = useState(null);
     const [notification, setNotification] = useState(null);
     const [error, setError] = useState(null);
+    const { user } = useAuth();
   
     const notificationListener = useRef();
     const responseListener = useRef();
   
+    // Register for push notifications on mount
     useEffect(() => {
       registerForPushNotificationsAsync().then(
-        (token) => setExpoPushToken(token),
+        (token) => {
+          setExpoPushToken(token);
+        },
         (error) => setError(error)
       );
   
@@ -55,6 +61,15 @@ import React, {
             responseListener.current?.remove();
           };
     }, []);
+
+    // Save push token to Firestore when user logs in or token changes
+    useEffect(() => {
+      if (user?.uid && expoPushToken) {
+        saveUserPushToken(user.uid, expoPushToken).catch((err) => {
+          console.error("Failed to save push token:", err);
+        });
+      }
+    }, [user?.uid, expoPushToken]);
   
     return (
       <NotificationContext.Provider

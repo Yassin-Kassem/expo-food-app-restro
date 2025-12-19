@@ -153,10 +153,10 @@ const ActiveOrderCard = ({ order }) => {
                         />
                     </View>
                     <View style={styles.progressLabels}>
-                        <Text style={styles.progressLabel}>Placed</Text>
-                        <Text style={styles.progressLabel}>Preparing</Text>
-                        <Text style={styles.progressLabel}>Ready</Text>
-                        <Text style={styles.progressLabel}>Delivery</Text>
+                        <Text style={styles.progressLabel}>Placed </Text>
+                        <Text style={styles.progressLabel}>Preparing </Text>
+                        <Text style={styles.progressLabel}>Ready </Text>
+                        <Text style={styles.progressLabel}>Delivery </Text>
                     </View>
                 </View>
 

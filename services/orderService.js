@@ -1,6 +1,7 @@
 import { firebaseFirestore } from '../config/firebase.config';
 import { logError, logInfo } from '../utils/errorLogger';
 import { validateOrderStatusTransition } from '../utils/validation';
+import { notifyRestaurantNewOrder, notifyUserOrderStatusChange } from './notificationService';
 
 const collectionRef = () => firebaseFirestore().collection('orders');
 
@@ -135,6 +136,16 @@ export const createOrder = async (orderData) => {
             orderId: docRef.id, 
             orderDisplayId,
             restaurantId: orderData.restaurantId 
+        });
+
+        // Notify restaurant about new order (don't wait for it to complete)
+        notifyRestaurantNewOrder(orderData.restaurantId, {
+            orderId: docRef.id,
+            orderDisplayId,
+            customerName: orderData.customerName || 'Customer',
+        }).catch((err) => {
+            // Log error but don't fail the order creation
+            logError('NOTIFY_RESTAURANT_ERROR', err, { orderId: docRef.id, restaurantId: orderData.restaurantId });
         });
 
         return { 
@@ -525,6 +536,11 @@ export const updateOrderStatus = async (orderId, newStatus, restaurantId) => {
 
         const currentStatus = orderDoc.data().status;
         
+        // Don't send notification if status hasn't actually changed
+        if (currentStatus === newStatus) {
+            return { success: true };
+        }
+        
         // Validate status transition
         const transitionError = validateOrderStatusTransition(currentStatus, newStatus);
         if (transitionError) {
@@ -535,6 +551,9 @@ export const updateOrderStatus = async (orderId, newStatus, restaurantId) => {
                 retryable: false
             };
         }
+
+        // Store order data for notification
+        let orderDataForNotification = null;
 
         // Use transaction to prevent race conditions
         await firebaseFirestore().runTransaction(async (transaction) => {
@@ -556,6 +575,13 @@ export const updateOrderStatus = async (orderId, newStatus, restaurantId) => {
                 throw new Error('Order status changed by another process');
             }
 
+            // Store order data for notification (before updating)
+            orderDataForNotification = {
+                id: orderId,
+                orderDisplayId: orderData.orderDisplayId,
+                customerId: orderData.customerId,
+            };
+
             const isCompleted = newStatus === ORDER_STATUSES.DELIVERED || newStatus === ORDER_STATUSES.CANCELLED;
             
             transaction.update(orderRef, {
@@ -564,6 +590,23 @@ export const updateOrderStatus = async (orderId, newStatus, restaurantId) => {
                 ...(isCompleted && { completedAt: firebaseFirestore.FieldValue.serverTimestamp() })
             });
         });
+
+        // Notify user about order status change (only if status actually changed)
+        // This prevents duplicate notifications if updateOrderStatus is called multiple times
+        if (orderDataForNotification && orderDataForNotification.customerId && currentStatus !== newStatus) {
+            notifyUserOrderStatusChange(
+                orderDataForNotification.customerId,
+                newStatus,
+                orderDataForNotification
+            ).catch((err) => {
+                // Log error but don't fail the status update
+                logError('NOTIFY_USER_STATUS_CHANGE_ERROR', err, { 
+                    orderId, 
+                    customerId: orderDataForNotification.customerId,
+                    newStatus 
+                });
+            });
+        }
 
         return { success: true };
     } catch (error) {
