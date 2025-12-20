@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
     View, 
     Text, 
@@ -9,12 +9,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../hooks/useAuth';
 import { spacing, fontSize, fontWeight, radius, shadows } from '../../../constants/theme';
 import CustomModal from '../../../components/CustomModal';
+import { listenToUserFavorites } from '../../../services/favoritesService';
+import { listenToUserOrders } from '../../../services/orderService';
+
+const SAVED_ADDRESSES_KEY = '@food_ordering_saved_addresses';
 
 const MenuItem = ({ icon, title, subtitle, onPress, color, isDestructive, isLoading }) => {
     const { theme } = useTheme();
@@ -57,6 +62,9 @@ const ProfileScreen = () => {
     const { user, logout } = useAuth();
     const router = useRouter();
     const [loggingOut, setLoggingOut] = useState(false);
+    const [favoriteCount, setFavoriteCount] = useState(0);
+    const [orderCount, setOrderCount] = useState(0);
+    const [addressCount, setAddressCount] = useState(0);
     
     // Modal states
     const [modalConfig, setModalConfig] = useState({
@@ -77,6 +85,74 @@ const ProfileScreen = () => {
     const hideModal = () => {
         setModalConfig({ ...modalConfig, visible: false });
     };
+
+    // Listen to user favorites to get count
+    useEffect(() => {
+        if (!user?.uid) {
+            setFavoriteCount(0);
+            return;
+        }
+
+        const unsubscribe = listenToUserFavorites(user.uid, (result) => {
+            if (result.success) {
+                setFavoriteCount(result.data?.length || 0);
+            } else {
+                setFavoriteCount(0);
+            }
+        });
+
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
+    }, [user?.uid]);
+
+    // Listen to user orders to get count
+    useEffect(() => {
+        if (!user?.uid) {
+            setOrderCount(0);
+            return;
+        }
+
+        const unsubscribe = listenToUserOrders(user.uid, (result) => {
+            if (result.success) {
+                setOrderCount(result.data?.length || 0);
+            } else {
+                setOrderCount(0);
+            }
+        });
+
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
+    }, [user?.uid]);
+
+    // Load saved addresses count
+    const loadAddressCount = useCallback(async () => {
+        try {
+            const saved = await AsyncStorage.getItem(SAVED_ADDRESSES_KEY);
+            if (saved) {
+                const addresses = JSON.parse(saved);
+                setAddressCount(addresses.length || 0);
+            } else {
+                setAddressCount(0);
+            }
+        } catch (e) {
+            console.error('Error loading address count:', e);
+            setAddressCount(0);
+        }
+    }, []);
+
+    // Load address count on mount and when screen is focused
+    useEffect(() => {
+        loadAddressCount();
+    }, [loadAddressCount]);
+
+    // Refresh address count when screen comes into focus
+    useFocusEffect(
+        useCallback(() => {
+            loadAddressCount();
+        }, [loadAddressCount])
+    );
 
     const handleLogout = () => {
         showModal({
@@ -164,18 +240,18 @@ const ProfileScreen = () => {
                 {/* Quick Stats */}
                 <View style={[styles.statsContainer, { backgroundColor: theme.surface }]}>
                     <View style={styles.statItem}>
-                        <Text style={[styles.statValue, { color: theme.primary }]}>12</Text>
-                        <Text style={[styles.statLabel, { color: theme.textMuted }]}>Orders</Text>
+                        <Text style={[styles.statValue, { color: theme.primary }]}>{orderCount}</Text>
+                        <Text style={[styles.statLabel, { color: theme.textMuted }]}>Orders </Text>
                     </View>
                     <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
                     <View style={styles.statItem}>
-                        <Text style={[styles.statValue, { color: theme.primary }]}>3</Text>
-                        <Text style={[styles.statLabel, { color: theme.textMuted }]}>Favorites</Text>
+                        <Text style={[styles.statValue, { color: theme.primary }]}>{favoriteCount}</Text>
+                        <Text style={[styles.statLabel, { color: theme.textMuted }]}>Favorites </Text>
                     </View>
                     <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
                     <View style={styles.statItem}>
-                        <Text style={[styles.statValue, { color: theme.primary }]}>2</Text>
-                        <Text style={[styles.statLabel, { color: theme.textMuted }]}>Addresses</Text>
+                        <Text style={[styles.statValue, { color: theme.primary }]}>{addressCount}</Text>
+                        <Text style={[styles.statLabel, { color: theme.textMuted }]}>Addresses </Text>
                     </View>
                 </View>
 
@@ -190,13 +266,16 @@ const ProfileScreen = () => {
                         icon="location-outline"
                         title="Saved Addresses"
                         color="#0984E3"
-                        onPress={() => {}}
+                        onPress={() => router.push('/(user)/saved-addresses')}
                     />
                     <MenuItem
                         icon="heart-outline"
                         title="Favorites"
                         color="#EC4899"
-                        onPress={() => {}}
+                        onPress={() => router.push({
+                            pathname: '/(user)/(tabs)/browse',
+                            params: { view: 'favorites' }
+                        })}
                     />
                 </View>
 

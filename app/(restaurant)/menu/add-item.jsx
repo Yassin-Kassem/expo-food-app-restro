@@ -171,7 +171,7 @@ export default function AddMenuItemScreen() {
                     />
 
                     <Input
-                        label="Price ($) "
+                        label="Price (£) "
                         placeholder="0.00 "
                         value={price}
                         onChangeText={setPrice}

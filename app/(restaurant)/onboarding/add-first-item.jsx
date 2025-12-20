@@ -208,10 +208,10 @@ export default function AddFirstItem() {
     };
 
     const formatPrice = (value) => {
-        if (!value) return 'EGP 0.00';
+        if (!value) return '£0.00';
         const num = parseFloat(value);
-        if (isNaN(num)) return 'EGP 0.00';
-        return `EGP ${num.toFixed(2)}`;
+        if (isNaN(num)) return '£0.00';
+        return `£${num.toFixed(2)}`;
     };
 
     const styles = StyleSheet.create({
@@ -545,7 +545,7 @@ export default function AddFirstItem() {
                                 autoCapitalize="words"
                             />
                             <Input
-                                label="Price (EGP)"
+                                label="Price (£)"
                                 placeholder="e.g. 99.99"
                                 value={price}
                                 onChangeText={setPrice}

@@ -105,13 +105,34 @@ export default function Review() {
     };
 
     const formatPrice = (price) => {
-        if (!price) return 'EGP 0.00';
-        return `EGP ${parseFloat(price).toFixed(2)}`;
+        if (!price) return '£0.00';
+        return `£${parseFloat(price).toFixed(2)}`;
     };
 
     const getOpenDaysCount = () => {
         if (!restaurant?.hours) return 0;
-        return Object.values(restaurant.hours).filter(h => h.isOpen).length;
+        
+        // Handle both capitalized (Monday) and lowercase (monday) day names
+        const hoursEntries = Object.entries(restaurant.hours);
+        if (hoursEntries.length === 0) return 0;
+        
+        // Count days where isOpen is true, or where open/close times exist (implicitly open)
+        const openDays = hoursEntries.filter(([day, hours]) => {
+            // Check if hours is an object
+            if (hours && typeof hours === 'object') {
+                // Explicitly check isOpen property
+                if (hours.isOpen === true) {
+                    return true;
+                }
+                // If isOpen is not explicitly false and has open/close times, consider it open
+                if (hours.isOpen !== false && hours.open && hours.close) {
+                    return true;
+                }
+            }
+            return false;
+        });
+        
+        return openDays.length;
     };
 
     const styles = StyleSheet.create({

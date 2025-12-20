@@ -1,10 +1,23 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const LocationContext = createContext();
 
 const LOCATION_STORAGE_KEY = '@food_ordering_location';
+
+// Custom debounce function
+const debounce = (func, wait) => {
+    let timeout;
+    const debounced = (...args) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func(...args), wait);
+    };
+    debounced.cancel = () => {
+        clearTimeout(timeout);
+    };
+    return debounced;
+};
 const DEFAULT_LOCATION = {
     latitude: 25.7617,  // Miami default
     longitude: -80.1918,
@@ -54,22 +67,30 @@ export const LocationProvider = ({ children }) => {
         loadSavedLocation();
     }, []);
 
-    // Save location whenever it changes
+    // Debounced save location
+    const saveLocationDebounced = useMemo(
+        () => debounce(async (loc, addr) => {
+            try {
+                await AsyncStorage.setItem(
+                    LOCATION_STORAGE_KEY,
+                    JSON.stringify({ location: loc, address: addr })
+                );
+            } catch (e) {
+                console.error('Error saving location:', e);
+            }
+        }, 1000), // Save after 1 second of no changes
+        []
+    );
+
+    // Save location whenever it changes (debounced)
     useEffect(() => {
         if (location && address) {
-            const saveLocation = async () => {
-                try {
-                    await AsyncStorage.setItem(
-                        LOCATION_STORAGE_KEY,
-                        JSON.stringify({ location, address })
-                    );
-                } catch (e) {
-                    console.error('Error saving location:', e);
-                }
-            };
-            saveLocation();
+            saveLocationDebounced(location, address);
         }
-    }, [location, address]);
+        return () => {
+            saveLocationDebounced.cancel();
+        };
+    }, [location, address, saveLocationDebounced]);
 
     // Request location permissions
     const requestPermissions = useCallback(async () => {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
     View, 
     Text, 
@@ -19,6 +19,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { spacing, fontSize, fontWeight, radius, shadows } from '../../constants/theme';
 import CustomModal from '../../components/CustomModal';
 import { createOrder } from '../../services/orderService';
+import { getRestaurantById } from '../../services/customerRestaurantService';
 
 const CheckoutScreen = () => {
     const { theme } = useTheme();
@@ -50,6 +51,13 @@ const CheckoutScreen = () => {
         type: 'warning',
     });
 
+    // Auto-fill phone number from userData on initial load
+    useEffect(() => {
+        if (userData?.phoneNumber && !phoneNumber) {
+            setPhoneNumber(userData.phoneNumber);
+        }
+    }, [userData?.phoneNumber]);
+
     const showModal = (title, message) => {
         setModalConfig({ visible: true, title, message, type: 'warning' });
     };
@@ -64,6 +72,7 @@ const CheckoutScreen = () => {
             showModal('Missing Address', 'Please enter a delivery address');
             return;
         }
+        // Phone number is optional if user has one saved, but required if they don't
         if (!phoneNumber.trim()) {
             showModal('Missing Phone', 'Please enter your phone number');
             return;
@@ -78,6 +87,31 @@ const CheckoutScreen = () => {
         }
 
         setIsPlacingOrder(true);
+
+        // Check if restaurant is open before placing order
+        try {
+            const restaurantResult = await getRestaurantById(restaurantId);
+            if (!restaurantResult.success) {
+                setIsPlacingOrder(false);
+                showModal('Restaurant Unavailable', 'Unable to verify restaurant status. Please try again.');
+                return;
+            }
+
+            const restaurant = restaurantResult.data;
+            // Check if restaurant is closed
+            // The restaurant.isOpen value from getRestaurantById already respects manual overrides
+            // But we also check restaurantStatus as a fallback
+            if (restaurant.isOpen === false || restaurant.restaurantStatus === 'closed') {
+                setIsPlacingOrder(false);
+                showModal('Restaurant Closed', 'This restaurant is currently closed. Please try again later.');
+                return;
+            }
+        } catch (error) {
+            console.error('Error checking restaurant status:', error);
+            setIsPlacingOrder(false);
+            showModal('Error', 'Unable to verify restaurant status. Please try again.');
+            return;
+        }
 
         try {
             // Create the order in Firestore
@@ -174,7 +208,7 @@ const CheckoutScreen = () => {
                     
                     <View style={styles.orderSummary}>
                         <Text style={[styles.summaryText, { color: theme.textSecondary }]}>
-                            {itemCount} item{itemCount !== 1 ? 's' : ''} • ${subtotal.toFixed(2)}
+                            {itemCount} item {itemCount !== 1 ? 's' : ''} • £{subtotal.toFixed(2)}{" "}
                         </Text>
                         <TouchableOpacity onPress={() => router.back()}>
                             <Text style={[styles.editLink, { color: theme.primary }]}>Edit</Text>
@@ -277,26 +311,26 @@ const CheckoutScreen = () => {
                 {/* Price Breakdown */}
                 <View style={[styles.section, { backgroundColor: theme.surface }]}>
                     <Text style={[styles.sectionTitle, { color: theme.textPrimary, marginBottom: spacing.md }]}>
-                        Price Details
+                        Price  
                     </Text>
                     
                     <View style={styles.priceRow}>
-                        <Text style={[styles.priceLabel, { color: theme.textSecondary }]}>Subtotal</Text>
-                        <Text style={[styles.priceValue, { color: theme.textPrimary }]}>${subtotal.toFixed(2)}</Text>
+                        <Text style={[styles.priceLabel, { color: theme.textSecondary }]}>Subtotal </Text>
+                        <Text style={[styles.priceValue, { color: theme.textPrimary }]}>£{subtotal.toFixed(2)} </Text>
                     </View>
                     <View style={styles.priceRow}>
-                        <Text style={[styles.priceLabel, { color: theme.textSecondary }]}>Tax</Text>
-                        <Text style={[styles.priceValue, { color: theme.textPrimary }]}>${tax.toFixed(2)}</Text>
+                        <Text style={[styles.priceLabel, { color: theme.textSecondary }]}>Tax </Text>
+                        <Text style={[styles.priceValue, { color: theme.textPrimary }]}>£{tax.toFixed(2)} </Text>
                     </View>
                     <View style={styles.priceRow}>
-                        <Text style={[styles.priceLabel, { color: theme.textSecondary }]}>Delivery Fee</Text>
+                        <Text style={[styles.priceLabel, { color: theme.textSecondary }]}>Delivery Fee </Text>
                         <Text style={[styles.priceValue, { color: theme.textPrimary }]}>
-                            {deliveryFee > 0 ? `$${deliveryFee.toFixed(2)}` : 'Free'}
+                            {deliveryFee > 0 ? `£${deliveryFee.toFixed(2)}` : 'Free' }{" "}
                         </Text>
                     </View>
                     <View style={[styles.priceRow, styles.totalRow, { borderTopColor: theme.border }]}>
-                        <Text style={[styles.totalLabel, { color: theme.textPrimary }]}>Total</Text>
-                        <Text style={[styles.totalValue, { color: theme.primary }]}>${total.toFixed(2)}</Text>
+                        <Text style={[styles.totalLabel, { color: theme.textPrimary }]}>Total </Text>
+                        <Text style={[styles.totalValue, { color: theme.primary }]}>£{total.toFixed(2)} </Text>
                     </View>
                 </View>
             </ScrollView>
@@ -310,17 +344,17 @@ const CheckoutScreen = () => {
                     disabled={isPlacingOrder}
                 >
                     <LinearGradient
-                        colors={isPlacingOrder ? ['#ccc', '#aaa'] : ['#FF6B4A', '#FF8E6B']}
+                        colors={isPlacingOrder ? [theme.textMuted, theme.textMuted] : [theme.primary, theme.primaryLight]}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 0 }}
                         style={styles.placeOrderGradient}
                     >
                         {isPlacingOrder ? (
-                            <Text style={styles.placeOrderText}>Placing Order...</Text>
+                            <Text style={styles.placeOrderText}>Placing Order... </Text>
                         ) : (
                             <>
-                                <Text style={styles.placeOrderText}>Place Order</Text>
-                                <Text style={styles.placeOrderPrice}>${total.toFixed(2)}</Text>
+                                <Text style={styles.placeOrderText}>Place Order </Text>
+                                <Text style={styles.placeOrderPrice}>£{total.toFixed(2)}</Text>
                             </>
                         )}
                     </LinearGradient>

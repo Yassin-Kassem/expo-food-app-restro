@@ -9,18 +9,22 @@ import {
     Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useCart } from '../../../contexts/CartContext';
-import { spacing, fontSize, fontWeight, radius } from '../../../constants/theme';
+import { useLocation } from '../../../contexts/LocationContext';
+import { useAuth } from '../../../hooks/useAuth';
+import { spacing, fontSize, fontWeight, radius, shadows } from '../../../constants/theme';
 import MenuItemModal from '../../../components/user/MenuItemModal';
 import { RestaurantCardSkeleton } from '../../../components/user/LoadingSkeleton';
 import CustomModal from '../../../components/CustomModal';
 
 // Services
 import { getRestaurantById, getRestaurantMenu } from '../../../services/customerRestaurantService';
+import { toggleFavorite, isRestaurantFavorited } from '../../../services/favoritesService';
 
 const MenuItemCard = ({ item, onPress }) => {
     const { theme } = useTheme();
@@ -39,7 +43,7 @@ const MenuItemCard = ({ item, onPress }) => {
                     {item.description}
                 </Text>
                 <Text style={[styles.menuItemPrice, { color: theme.primary }]}>
-                    ${item.price.toFixed(2)}
+                    £{item.price.toFixed(2)}
                 </Text>
             </View>
             
@@ -57,11 +61,89 @@ const MenuItemCard = ({ item, onPress }) => {
     );
 };
 
+// Calculate distance between two coordinates (Haversine formula)
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Radius of the Earth in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in km
+};
+
+// Calculate delivery fee based on distance
+// Base fee: £2.50, then £0.50 per km after first 2km
+const calculateDeliveryFee = (restaurantLocation, userLocation) => {
+    // If no location data, return default fee
+    if (!restaurantLocation || !userLocation) {
+        return 2.50; // Default base fee
+    }
+    
+    const distance = calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        restaurantLocation.lat,
+        restaurantLocation.lng
+    );
+    
+    // Base fee for first 2km
+    const baseFee = 2.50;
+    const perKmFee = 0.50;
+    const freeKm = 2;
+    
+    if (distance <= freeKm) {
+        return baseFee;
+    }
+    
+    // Calculate fee: base + (distance - freeKm) * perKmFee
+    const additionalKm = distance - freeKm;
+    const fee = baseFee + (additionalKm * perKmFee);
+    
+    // Round to 2 decimal places
+    return Math.round(fee * 100) / 100;
+};
+
+// Calculate estimated delivery time based on distance
+// Base time: 25 min, then ~3 min per km after first 2km
+const calculateDeliveryTime = (restaurantLocation, userLocation, baseTime = 25) => {
+    // If no location data, return base time
+    if (!restaurantLocation || !userLocation) {
+        return baseTime;
+    }
+    
+    const distance = calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        restaurantLocation.lat,
+        restaurantLocation.lng
+    );
+    
+    // Base time for first 2km
+    const freeKm = 2;
+    const minutesPerKm = 3;
+    
+    if (distance <= freeKm) {
+        return baseTime;
+    }
+    
+    // Calculate time: base + (distance - freeKm) * minutesPerKm
+    const additionalKm = distance - freeKm;
+    const totalTime = baseTime + (additionalKm * minutesPerKm);
+    
+    // Round to nearest 5 minutes for cleaner display
+    return Math.round(totalTime / 5) * 5;
+};
+
 const RestaurantDetailScreen = () => {
     const { theme, isDarkMode } = useTheme();
     const router = useRouter();
     const { id } = useLocalSearchParams();
     const { addItem, hasConflictingRestaurant, clearCart, itemCount } = useCart();
+    const { location: userLocation } = useLocation();
+    const { user } = useAuth();
     
     const [restaurant, setRestaurant] = useState(null);
     const [menuItems, setMenuItems] = useState([]);
@@ -70,7 +152,28 @@ const RestaurantDetailScreen = () => {
     const [selectedItem, setSelectedItem] = useState(null);
     const [showItemModal, setShowItemModal] = useState(false);
     const [cartConflictModal, setCartConflictModal] = useState({ visible: false, item: null });
+    const [isFavorite, setIsFavorite] = useState(false);
+    const [isToggling, setIsToggling] = useState(false);
     const scrollY = new Animated.Value(0);
+    
+    // Calculate delivery fee and time based on user location
+    const calculatedDeliveryFee = useMemo(() => {
+        if (restaurant?.location && userLocation) {
+            return calculateDeliveryFee(restaurant.location, userLocation);
+        }
+        return restaurant?.deliveryFee || 2.50;
+    }, [restaurant?.location, restaurant?.deliveryFee, userLocation]);
+    
+    const calculatedDeliveryTime = useMemo(() => {
+        if (restaurant?.location && userLocation) {
+            return calculateDeliveryTime(
+                restaurant.location, 
+                userLocation, 
+                restaurant?.estimatedDeliveryTime || 25
+            );
+        }
+        return restaurant?.estimatedDeliveryTime || 25;
+    }, [restaurant?.location, restaurant?.estimatedDeliveryTime, userLocation]);
 
     // Fetch restaurant and menu from Firebase
     useEffect(() => {
@@ -99,6 +202,51 @@ const RestaurantDetailScreen = () => {
             fetchData();
         }
     }, [id]);
+
+    // Check favorite status when restaurant and user are available
+    useEffect(() => {
+        const checkFavoriteStatus = async () => {
+            if (user?.uid && restaurant?.id) {
+                try {
+                    const result = await isRestaurantFavorited(user.uid, restaurant.id);
+                    if (result.success) {
+                        setIsFavorite(result.isFavorite || false);
+                    }
+                } catch (error) {
+                    console.error('Error checking favorite status:', error);
+                }
+            }
+        };
+
+        checkFavoriteStatus();
+    }, [user?.uid, restaurant?.id]);
+
+    // Handle favorite toggle
+    const handleToggleFavorite = useCallback(async () => {
+        if (!user?.uid || !restaurant?.id || isToggling) return;
+
+        setIsToggling(true);
+        const newFavoriteState = !isFavorite;
+        
+        // Optimistically update UI
+        setIsFavorite(newFavoriteState);
+        
+        try {
+            const result = await toggleFavorite(user.uid, restaurant.id, isFavorite);
+            
+            if (!result.success) {
+                // Revert on error
+                setIsFavorite(isFavorite);
+                console.error('Error toggling favorite:', result.error);
+            }
+        } catch (error) {
+            // Revert on error
+            setIsFavorite(isFavorite);
+            console.error('Error toggling favorite:', error);
+        } finally {
+            setIsToggling(false);
+        }
+    }, [user?.uid, restaurant?.id, isFavorite, isToggling]);
 
     const menuByCategory = useMemo(() => {
         const grouped = {};
@@ -184,15 +332,27 @@ const RestaurantDetailScreen = () => {
             
             <SafeAreaView edges={['top']} style={styles.headerButtons}>
                 <TouchableOpacity 
-                    style={[styles.headerButton, { backgroundColor: theme.surface }]}
+                    style={[styles.headerButton, { backgroundColor: theme.surface }, shadows.soft]}
                     onPress={() => router.back()}
+                    activeOpacity={0.7}
                 >
                     <Ionicons name="arrow-back" size={hp('2.5%')} color={theme.textPrimary} />
                 </TouchableOpacity>
                 
-                <TouchableOpacity style={[styles.headerButton, { backgroundColor: theme.surface }]}>
-                    <Ionicons name="heart-outline" size={hp('2.5%')} color={theme.textPrimary} />
-                </TouchableOpacity>
+                {user?.uid && (
+                    <TouchableOpacity 
+                        style={[styles.headerButton, { backgroundColor: theme.surface }, shadows.soft]}
+                        onPress={handleToggleFavorite}
+                        activeOpacity={0.7}
+                        disabled={isToggling}
+                    >
+                        <Ionicons 
+                            name={isFavorite ? "heart" : "heart-outline"} 
+                            size={hp('2.5%')} 
+                            color={isFavorite ? theme.favorite : theme.textPrimary} 
+                        />
+                    </TouchableOpacity>
+                )}
             </SafeAreaView>
 
             <Animated.ScrollView
@@ -203,58 +363,88 @@ const RestaurantDetailScreen = () => {
                 )}
                 scrollEventThrottle={16}
             >
-                {/* Hero Image */}
+                {/* Hero Image with Gradient Overlay */}
                 <View style={styles.heroContainer}>
                     <Image 
                         source={{ uri: restaurant.image }} 
                         style={styles.heroImage}
                     />
-                    <View style={styles.heroOverlay} />
+                    <LinearGradient
+                        colors={['transparent', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.6)']}
+                        style={styles.heroGradient}
+                    />
                 </View>
 
-                {/* Restaurant Info */}
-                <View style={[styles.infoSection, { backgroundColor: theme.background }]}>
+                {/* Restaurant Info Card */}
+                <View style={[styles.infoCard, { backgroundColor: theme.surface }, shadows.medium]}>
+                    {/* Header Section with Logo */}
                     <View style={styles.infoHeader}>
+                        {/* Restaurant Logo */}
+                        {restaurant.logoUrl && (
+                            <View style={[styles.infoLogoContainer, { backgroundColor: theme.surfaceAlt }]}>
+                                <Image 
+                                    source={{ uri: restaurant.logoUrl }} 
+                                    style={styles.infoLogo}
+                                    resizeMode="cover"
+                                />
+                            </View>
+                        )}
                         <View style={styles.infoMain}>
-                            <Text style={[styles.restaurantName, { color: theme.textPrimary }]}>
-                                {restaurant.name}
-                            </Text>
-                            <Text style={[styles.cuisineText, { color: theme.textMuted }]}>
-                                {restaurant.categories?.join(' • ')}
-                            </Text>
-                        </View>
-                        
-                        <View style={[styles.ratingBadge, { backgroundColor: theme.primary }]}>
-                            <Ionicons name="star" size={hp('1.6%')} color="#fff" />
-                            <Text style={styles.ratingText}>{restaurant.rating?.toFixed(1)}</Text>
+                            <View style={styles.nameRow}>
+                                <Text style={[styles.restaurantName, { color: theme.textPrimary }]}>
+                                    {restaurant.name}
+                                </Text>
+                                {/* Rating Badge in Info Card */}
+                                <View style={[styles.infoRatingBadge, { backgroundColor: theme.primary }]}>
+                                    <Ionicons name="star" size={hp('1.4%')} color="#fff" />
+                                    <Text style={styles.infoRatingText}>{restaurant.rating?.toFixed(1)}</Text>
+                                </View>
+                            </View>
+                            <View style={styles.cuisineRow}>
+                                <Ionicons name="restaurant-outline" size={hp('1.6%')} color={theme.primary} />
+                                <Text style={[styles.cuisineText, { color: theme.textMuted }]}>
+                                    {restaurant.categories?.join(' • ')}
+                                </Text>
+                            </View>
                         </View>
                     </View>
 
-                    {/* Quick Info Pills */}
+                    {/* Quick Info Pills - Enhanced */}
                     <View style={styles.pillsRow}>
-                        <View style={[styles.infoPill, { backgroundColor: theme.surfaceAlt }]}>
-                            <Ionicons name="time-outline" size={hp('1.8%')} color={theme.primary} />
-                            <Text style={[styles.pillText, { color: theme.textPrimary }]}>
-                                {restaurant.estimatedDeliveryTime} min
-                            </Text>
+                        <View style={[styles.infoPill, { backgroundColor: `${theme.primary}15` }]}>
+                            <View style={[styles.pillIconContainer, { backgroundColor: theme.primary }]}>
+                                <Ionicons name="time" size={hp('1.6%')} color="#fff" />
+                            </View>
+                            <View style={styles.pillContent}>
+                                <Text style={[styles.pillLabel, { color: theme.textMuted }]}>Delivery</Text>
+                                <Text style={[styles.pillValue, { color: theme.textPrimary }]}>
+                                    {calculatedDeliveryTime} min
+                                </Text>
+                            </View>
                         </View>
-                        <View style={[styles.infoPill, { backgroundColor: theme.surfaceAlt }]}>
-                            <Ionicons name="bicycle-outline" size={hp('1.8%')} color={theme.primary} />
-                            <Text style={[styles.pillText, { color: theme.textPrimary }]}>
-                                ${restaurant.deliveryFee?.toFixed(2)}
-                            </Text>
+                        <View style={[styles.infoPill, { backgroundColor: `${theme.primary}15` }]}>
+                            <View style={[styles.pillIconContainer, { backgroundColor: theme.primary }]}>
+                                <Ionicons name="bicycle" size={hp('1.6%')} color="#fff" />
+                            </View>
+                            <View style={styles.pillContent}>
+                                <Text style={[styles.pillLabel, { color: theme.textMuted }]}>Fee</Text>
+                                <Text style={[styles.pillValue, { color: theme.textPrimary }]}>
+                                    £{calculatedDeliveryFee.toFixed(2)}
+                                </Text>
+                            </View>
                         </View>
-                        <View style={[styles.infoPill, { backgroundColor: theme.surfaceAlt }]}>
-                            <Text style={[styles.pillText, { color: theme.primary, fontWeight: fontWeight.bold }]}>
-                                {restaurant.priceRange}
-                            </Text>
+                        <View style={[styles.infoPill, { backgroundColor: `${theme.primary}15` }]}>
+                            <View style={[styles.pillIconContainer, { backgroundColor: theme.primary }]}>
+                                <Ionicons name="cash" size={hp('1.6%')} color="#fff" />
+                            </View>
+                            <View style={styles.pillContent}>
+                                <Text style={[styles.pillLabel, { color: theme.textMuted }]}>Price</Text>
+                                <Text style={[styles.pillValue, { color: theme.textPrimary }]}>
+                                    {restaurant.priceRange}
+                                </Text>
+                            </View>
                         </View>
                     </View>
-
-                    {/* Description */}
-                    <Text style={[styles.description, { color: theme.textSecondary }]}>
-                        {restaurant.description}
-                    </Text>
                 </View>
 
                 {/* Category Tabs */}
@@ -380,9 +570,9 @@ const styles = StyleSheet.create({
         paddingTop: spacing.sm,
     },
     headerButton: {
-        width: hp('4.5%'),
-        height: hp('4.5%'),
-        borderRadius: hp('2.25%'),
+        width: hp('5%'),
+        height: hp('5%'),
+        borderRadius: radius.lg,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -395,68 +585,105 @@ const styles = StyleSheet.create({
         height: '100%',
         resizeMode: 'cover',
     },
-    heroOverlay: {
+    heroGradient: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.1)',
     },
-    infoSection: {
-        padding: spacing.md,
-        marginTop: -spacing.lg,
-        borderTopLeftRadius: radius.xl,
-        borderTopRightRadius: radius.xl,
+    infoCard: {
+        marginTop: -spacing.xl,
+        marginHorizontal: spacing.md,
+        paddingVertical: spacing.lg,
+        paddingHorizontal: spacing.md,
+        borderRadius: radius.xl,
+        ...shadows.medium,
     },
     infoHeader: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'flex-start',
         marginBottom: spacing.md,
+        gap: spacing.md,
+    },
+    infoLogoContainer: {
+        width: hp('6%'),
+        height: hp('6%'),
+        borderRadius: radius.lg,
+        padding: spacing.xs,
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+    },
+    infoLogo: {
+        width: '100%',
+        height: '100%',
+        borderRadius: radius.md,
     },
     infoMain: {
         flex: 1,
-        marginRight: spacing.md,
+    },
+    nameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        marginBottom: spacing.xs,
     },
     restaurantName: {
         fontSize: fontSize.title,
         fontWeight: fontWeight.bold,
         letterSpacing: -0.5,
-        marginBottom: hp('0.2%'),
+        flex: 1,
     },
-    cuisineText: {
-        fontSize: fontSize.caption,
-    },
-    ratingBadge: {
+    infoRatingBadge: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: spacing.sm,
-        paddingVertical: hp('0.4%'),
+        paddingVertical: hp('0.3%'),
         borderRadius: radius.pill,
         gap: wp('1%'),
     },
-    ratingText: {
+    infoRatingText: {
         color: '#fff',
         fontSize: fontSize.caption,
         fontWeight: fontWeight.bold,
     },
+    cuisineRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
+    },
+    cuisineText: {
+        fontSize: fontSize.body,
+        fontWeight: fontWeight.medium,
+    },
     pillsRow: {
         flexDirection: 'row',
         gap: spacing.sm,
-        marginBottom: spacing.md,
+        marginBottom: 0,
     },
     infoPill: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: spacing.sm,
-        paddingVertical: hp('0.5%'),
-        borderRadius: radius.pill,
-        gap: wp('1%'),
+        padding: spacing.sm,
+        borderRadius: radius.lg,
+        gap: spacing.sm,
     },
-    pillText: {
+    pillIconContainer: {
+        width: hp('3.5%'),
+        height: hp('3.5%'),
+        borderRadius: hp('1.75%'),
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    pillContent: {
+        flex: 1,
+    },
+    pillLabel: {
+        fontSize: hp('1.2%'),
+        fontWeight: fontWeight.regular,
+        marginBottom: hp('0.1%'),
+    },
+    pillValue: {
         fontSize: fontSize.caption,
-        fontWeight: fontWeight.medium,
-    },
-    description: {
-        fontSize: fontSize.body,
-        lineHeight: hp('2.6%'),
+        fontWeight: fontWeight.bold,
     },
     categoryTabs: {
         paddingHorizontal: spacing.md,

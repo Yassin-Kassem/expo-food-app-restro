@@ -21,8 +21,16 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 
 // Check if restaurant is currently open based on hours
 const isRestaurantOpen = (restaurant) => {
-    if (!restaurant.hours) return true; // Assume open if no hours set
+    // First, check for manual override via restaurantStatus field
+    if (restaurant.restaurantStatus === 'closed') return false;
+    if (restaurant.restaurantStatus === 'open') return true;
+    
+    // Then check explicit isOpen boolean (manual override)
     if (restaurant.isOpen === false) return false; // Manually closed
+    if (restaurant.isOpen === true) return true; // Manually opened - respect this override
+    
+    // If no manual override, calculate based on hours
+    if (!restaurant.hours) return true; // Assume open if no hours set
     
     const now = new Date();
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -50,13 +58,20 @@ const isRestaurantOpen = (restaurant) => {
 };
 
 // Add computed fields to restaurant
-const enrichRestaurant = (restaurant, userLocation = null) => {
+const enrichRestaurant = (restaurant, userLocation = null, shouldCalculateDistance = false) => {
     const enriched = {
         ...restaurant,
         isOpen: isRestaurantOpen(restaurant),
     };
     
-    if (userLocation && restaurant.location) {
+    // Map bannerUrl to image if image is not set (for backward compatibility)
+    // Priority: image > bannerUrl > default
+    if (!enriched.image && enriched.bannerUrl) {
+        enriched.image = enriched.bannerUrl;
+    }
+    
+    // Only calculate distance when explicitly needed
+    if (shouldCalculateDistance && userLocation && restaurant.location) {
         enriched.distance = calculateDistance(
             userLocation.latitude,
             userLocation.longitude,
@@ -71,66 +86,77 @@ const enrichRestaurant = (restaurant, userLocation = null) => {
 /**
  * Get all active restaurants
  */
-export const getAllRestaurants = async (userLocation = null, filters = {}) => {
+export const getAllRestaurants = async (userLocation = null, filters = {}, pagination = {}) => {
     try {
         let query = collectionRef().where('status', '==', 'active');
         
+        // Apply Firestore filters (server-side filtering)
+        if (filters.categories?.length > 0) {
+            // Firestore array-contains-any for categories
+            query = query.where('categories', 'array-contains-any', filters.categories);
+        }
+        
+        if (filters.minRating) {
+            query = query.where('rating', '>=', filters.minRating);
+        }
+        
+        if (filters.priceRange) {
+            query = query.where('priceRange', '==', filters.priceRange);
+        }
+        
+        // Apply sorting at Firestore level where possible
+        switch (filters.sortBy) {
+            case 'rating':
+                query = query.orderBy('rating', 'desc');
+                break;
+            case 'deliveryTime':
+                query = query.orderBy('estimatedDeliveryTime', 'asc');
+                break;
+            // Note: distance sorting must be done client-side
+            // Note: price sorting must be done client-side (priceRange is string)
+        }
+        
+        // Pagination support
+        if (pagination.limit) {
+            query = query.limit(pagination.limit);
+        }
+        if (pagination.startAfter) {
+            query = query.startAfter(pagination.startAfter);
+        }
+        
         const snapshot = await query.get();
         
+        // Determine if distance calculation is needed
+        const needsDistance = filters.sortBy === 'distance' || filters.maxDistance;
+        
         let restaurants = snapshot.docs.map(doc => 
-            enrichRestaurant(mapRestaurant(doc), userLocation)
+            enrichRestaurant(mapRestaurant(doc), userLocation, needsDistance)
         );
 
-        // Apply filters
-        if (filters.categories?.length > 0) {
-            restaurants = restaurants.filter(r => 
-                r.categories?.some(cat => filters.categories.includes(cat))
-            );
+        // Client-side filtering for things Firestore can't handle
+        if (filters.openNow) {
+            restaurants = restaurants.filter(r => r.isOpen);
         }
 
-        if (filters.priceRange) {
-            restaurants = restaurants.filter(r => 
-                r.priceRange === filters.priceRange
-            );
-        }
-
-        if (filters.minRating) {
-            restaurants = restaurants.filter(r => 
-                (r.rating || 0) >= filters.minRating
-            );
-        }
-
-        if (filters.maxDistance && userLocation) {
+        if (filters.maxDistance && userLocation && needsDistance) {
             restaurants = restaurants.filter(r => 
                 r.distance && r.distance <= filters.maxDistance
             );
         }
 
-        if (filters.openNow) {
-            restaurants = restaurants.filter(r => r.isOpen);
-        }
-
-        // Apply sorting
+        // Apply client-side sorting (for distance, price, or default)
         switch (filters.sortBy) {
             case 'distance':
                 restaurants.sort((a, b) => (a.distance || 999) - (b.distance || 999));
                 break;
-            case 'rating':
-                restaurants.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-                break;
-            case 'deliveryTime':
-                restaurants.sort((a, b) => 
-                    (a.estimatedDeliveryTime || 60) - (b.estimatedDeliveryTime || 60)
-                );
-                break;
             case 'priceLow':
-                const priceOrder = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 };
+                const priceOrder = { '£': 1, '££': 2, '£££': 3, '££££': 4 };
                 restaurants.sort((a, b) => 
                     (priceOrder[a.priceRange] || 2) - (priceOrder[b.priceRange] || 2)
                 );
                 break;
             case 'priceHigh':
-                const priceOrderDesc = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 };
+                const priceOrderDesc = { '£': 1, '££': 2, '£££': 3, '££££': 4 };
                 restaurants.sort((a, b) => 
                     (priceOrderDesc[b.priceRange] || 2) - (priceOrderDesc[a.priceRange] || 2)
                 );
@@ -143,7 +169,11 @@ export const getAllRestaurants = async (userLocation = null, filters = {}) => {
                 });
         }
 
-        return { success: true, data: restaurants };
+        return { 
+            success: true, 
+            data: restaurants,
+            lastDoc: snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : null // For pagination
+        };
     } catch (error) {
         logError('GET_ALL_RESTAURANTS_ERROR', error);
         
@@ -217,7 +247,8 @@ export const getRestaurantById = async (restaurantId, userLocation = null) => {
             };
         }
 
-        const restaurant = enrichRestaurant(mapRestaurant(doc), userLocation);
+        // Always calculate distance for individual restaurant view
+        const restaurant = enrichRestaurant(mapRestaurant(doc), userLocation, true);
         return { success: true, data: restaurant };
     } catch (error) {
         logError('GET_RESTAURANT_BY_ID_ERROR', error, { restaurantId });
@@ -376,7 +407,7 @@ export const listenRestaurant = (restaurantId, callback) => {
                         return;
                     }
 
-                    const restaurant = enrichRestaurant(mapRestaurant(doc));
+                    const restaurant = enrichRestaurant(mapRestaurant(doc), null, false);
                     callback({ success: true, data: restaurant });
                 },
                 (error) => {

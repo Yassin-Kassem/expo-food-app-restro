@@ -84,7 +84,9 @@ const HomeScreen = () => {
             return;
         }
 
+        let isMounted = true;
         const unsubscribe = listenToActiveUserOrder(user.uid, (result) => {
+            if (!isMounted) return; // Prevent state updates if unmounted
             if (result.success) {
                 setActiveOrder(result.data);
             } else {
@@ -93,6 +95,7 @@ const HomeScreen = () => {
         });
 
         return () => {
+            isMounted = false;
             if (unsubscribe) unsubscribe();
         };
     }, [user?.uid]);
@@ -112,15 +115,6 @@ const HomeScreen = () => {
             )
         );
     }, [restaurants, selectedCategory]);
-
-    // Nearby restaurants (Kitchen Near You)
-    const nearbyRestaurants = useMemo(() => {
-        if (!hasLocation) return restaurants.slice(0, 6);
-        return [...restaurants]
-            .filter(r => r.distance)
-            .sort((a, b) => a.distance - b.distance)
-            .slice(0, 6);
-    }, [restaurants, hasLocation]);
 
     const handleRestaurantPress = (restaurant) => {
         router.push(`/(user)/restaurant/${restaurant.id}`);
@@ -258,38 +252,6 @@ const HomeScreen = () => {
                     onCategorySelect={handleCategorySelect}
                     variant="circular"
                 />
-
-                {/* Kitchen Near You Section */}
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-                            Kitchen Near You
-                        </Text>
-                        <TouchableOpacity 
-                            onPress={() => handleSeeAll('nearby')}
-                            activeOpacity={0.7}
-                        >
-                            <Text style={[styles.seeAllText, { color: theme.primary }]}>
-                                See all
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.horizontalList}
-                    >
-                        {nearbyRestaurants.map((restaurant) => (
-                            <RestaurantCard
-                                key={restaurant.id}
-                                restaurant={restaurant}
-                                variant="compact"
-                                onPress={() => handleRestaurantPress(restaurant)}
-                            />
-                        ))}
-                    </ScrollView>
-                </View>
 
                 {/* All Restaurants / Filtered Results */}
                 <View style={styles.section}>

@@ -60,18 +60,19 @@ export default function OrdersScreen() {
     const filteredOrders = useMemo(() => {
         return ordersWithDerivedFields.filter(order => {
             if (activeTab === 'active') {
-                return ['Pending', 'Cooking', 'Ready'].includes(order.status);
+                // Active orders: exclude Pending (not accepted yet), include accepted orders
+                return ['Preparing', 'Cooking', 'Ready', 'Out for Delivery'].includes(order.status);
             }
-            return ['Completed', 'Cancelled'].includes(order.status);
+            return ['Delivered', 'Completed', 'Cancelled'].includes(order.status);
         });
     }, [ordersWithDerivedFields, activeTab]);
 
     const activeCount = useMemo(
-        () => ordersWithDerivedFields.filter(o => ['Pending', 'Cooking', 'Ready'].includes(o.status)).length,
+        () => ordersWithDerivedFields.filter(o => ['Cooking', 'Preparing', 'Ready', 'Out for Delivery'].includes(o.status)).length,
         [ordersWithDerivedFields]
     );
     const completedCount = useMemo(
-        () => ordersWithDerivedFields.filter(o => ['Completed', 'Cancelled'].includes(o.status)).length,
+        () => ordersWithDerivedFields.filter(o => ['Delivered', 'Completed', 'Cancelled'].includes(o.status)).length,
         [ordersWithDerivedFields]
     );
     const pendingCount = useMemo(

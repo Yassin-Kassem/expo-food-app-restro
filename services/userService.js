@@ -51,6 +51,32 @@ export const updateOnboardingStatus = async (uid, completed) => {
 };
 
 /**
+ * Update user profile (name and phone number)
+ */
+export const updateUserProfile = async (uid, profileData) => {
+    try {
+        const updateData = {
+            updatedAt: firebaseFirestore.FieldValue.serverTimestamp(),
+        };
+
+        if (profileData.name !== undefined) {
+            updateData.name = profileData.name;
+            updateData.displayName = profileData.name;
+        }
+
+        if (profileData.phoneNumber !== undefined) {
+            updateData.phoneNumber = profileData.phoneNumber;
+        }
+
+        await firebaseFirestore().collection('users').doc(uid).update(updateData);
+        return { success: true };
+    } catch (error) {
+        console.error('Error updating user profile:', error);
+        return { success: false, error: 'Failed to update user profile' };
+    }
+};
+
+/**
  * Listen to user document changes
  */
 export const onUserDataChanged = (uid, callback) => {

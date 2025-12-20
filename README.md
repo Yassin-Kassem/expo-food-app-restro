@@ -583,4 +583,4 @@ This project is private and proprietary.
 
 ---
 
-**Built with ❤️ using React Native and Expo**
+

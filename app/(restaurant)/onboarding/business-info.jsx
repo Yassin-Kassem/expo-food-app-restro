@@ -19,6 +19,7 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import { spacing, fontSize, fontWeight, radius, shadows } from '../../../constants/theme';
 import Button from '../../../components/Button';
 import Input from '../../../components/Input';
+import Dropdown from '../../../components/Dropdown';
 import CustomModal from '../../../components/CustomModal';
 import { createRestaurant, getRestaurantByOwner, updateRestaurant } from '../../../services/restaurantService';
 import { getCurrentUser } from '../../../services/authService';
@@ -34,6 +35,8 @@ export default function BusinessInfo() {
     const [description, setDescription] = useState('');
     const [categories, setCategories] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
+    const [rating, setRating] = useState('');
+    const [priceRange, setPriceRange] = useState('');
     
     // Image states
     const [logoUri, setLogoUri] = useState(null);
@@ -102,6 +105,8 @@ export default function BusinessInfo() {
             setDescription(data.description || '');
             setCategories(data.categories ? data.categories.join(', ') : '');
             setPhoneNumber(data.phone || '');
+            setRating(data.rating ? data.rating.toString() : '');
+            setPriceRange(data.priceRange || '');
             setLogoUri(data.logoUrl || null);
             setBannerUri(data.bannerUrl || null);
         }
@@ -112,6 +117,9 @@ export default function BusinessInfo() {
         if (!name.trim()) newErrors.name = 'Restaurant name is required';
         if (!categories.trim()) newErrors.categories = 'Cuisine type is required';
         if (!description.trim()) newErrors.description = 'Description is required';
+        if (rating && (isNaN(rating) || parseFloat(rating) < 1 || parseFloat(rating) > 5)) {
+            newErrors.rating = 'Rating must be between 1 and 5';
+        }
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -190,6 +198,8 @@ export default function BusinessInfo() {
                     description: description.trim(),
                     categories: categories.split(',').map(c => c.trim()).filter(Boolean),
                     phone: phoneNumber,
+                    rating: rating ? parseFloat(rating) : null,
+                    priceRange: priceRange || null,
                     logoUrl: '',
                     bannerUrl: ''
                 });
@@ -212,8 +222,10 @@ export default function BusinessInfo() {
                 description: description.trim(),
                 categories: categories.split(',').map(c => c.trim()).filter(Boolean),
                 phone: phoneNumber,
+                rating: rating ? parseFloat(rating) : null,
+                priceRange: priceRange || null,
                 ...(logoUrl && { logoUrl }),
-                ...(bannerUrl && { bannerUrl })
+                ...(bannerUrl && { bannerUrl, image: bannerUrl }) // Also set image field for backward compatibility
             });
 
             setLoading(false);
@@ -290,7 +302,8 @@ export default function BusinessInfo() {
             right: spacing.md,
             flexDirection: 'row',
             alignItems: 'center',
-            backgroundColor: 'rgba(255,255,255,0.95)',
+            backgroundColor: theme.surface,
+            opacity: 0.95,
             paddingHorizontal: spacing.md,
             paddingVertical: spacing.sm,
             borderRadius: radius.pill,
@@ -458,7 +471,7 @@ export default function BusinessInfo() {
                                         <View style={styles.bannerPlaceholderIcon}>
                                             <Ionicons name="image-outline" size={hp('2.5%')} color={theme.primary} />
                                         </View>
-                                        <Text style={styles.bannerPlaceholderText}>Tap to add cover photo</Text>
+                                        <Text style={styles.bannerPlaceholderText}>Tap to add cover photo </Text>
                                     </View>
                                 </View>
                             )}
@@ -580,6 +593,36 @@ export default function BusinessInfo() {
                                 multiline
                                 numberOfLines={4}
                                 error={errors.description}
+                            />
+                            <Input
+                                label="Rating"
+                                placeholder="1 to 5 (e.g., 4.5)"
+                                value={rating}
+                                onChangeText={(text) => {
+                                    // Allow only numbers and one decimal point
+                                    const cleaned = text.replace(/[^0-9.]/g, '');
+                                    // Ensure only one decimal point
+                                    const parts = cleaned.split('.');
+                                    if (parts.length > 2) {
+                                        setRating(parts[0] + '.' + parts.slice(1).join(''));
+                                    } else {
+                                        setRating(cleaned);
+                                    }
+                                }}
+                                keyboardType="decimal-pad"
+                                error={errors.rating}
+                            />
+                            <Dropdown
+                                label="Price Range"
+                                placeholder="Select price range"
+                                value={priceRange}
+                                options={[
+                                    { label: '£', value: '£' },
+                                    { label: '££', value: '££' },
+                                    { label: '£££', value: '£££' },
+                                ]}
+                                onSelect={setPriceRange}
+                                error={errors.priceRange}
                             />
                         </View>
                     </Animated.View>

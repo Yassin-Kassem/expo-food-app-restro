@@ -107,22 +107,36 @@ export default function Dashboard() {
         const startOfDay = new Date();
         startOfDay.setHours(0, 0, 0, 0);
 
-        const todayOrders = ordersWithDerivedFields.filter((order) => {
+        // Total orders today: Only count accepted orders (exclude Pending)
+        const todayAcceptedOrders = ordersWithDerivedFields.filter((order) => {
             if (!order.createdAt) return false;
             const orderDate = new Date(order.createdAt);
-            return orderDate >= startOfDay;
+            const isToday = orderDate >= startOfDay;
+            // Exclude pending orders - only count accepted orders
+            const isAccepted = order.status !== 'Pending';
+            return isToday && isAccepted;
         });
 
-        const revenueToday = todayOrders.reduce(
+        // Revenue today: Only count delivered orders (fully completed)
+        const todayDeliveredOrders = ordersWithDerivedFields.filter((order) => {
+            if (!order.createdAt) return false;
+            const orderDate = new Date(order.createdAt);
+            const isToday = orderDate >= startOfDay;
+            // Only count delivered orders for revenue
+            const isDelivered = order.status === 'Delivered';
+            return isToday && isDelivered;
+        });
+
+        const revenueToday = todayDeliveredOrders.reduce(
             (sum, order) => sum + (typeof order.total === 'string' ? parseFloat(order.total) || 0 : order.total || 0),
             0
         );
 
         return {
-            ordersToday: todayOrders.length,
+            ordersToday: todayAcceptedOrders.length,
             revenueToday: revenueToday.toLocaleString('en-US', {
                 style: 'currency',
-                currency: 'USD'
+                currency: 'GBP'
             })
         };
     }, [ordersWithDerivedFields]);
@@ -130,7 +144,7 @@ export default function Dashboard() {
     const activeOrders = useMemo(
         () =>
             ordersWithDerivedFields
-                .filter((order) => ['Pending', 'Cooking', 'Ready'].includes(order.status))
+                .filter((order) => ['Pending', 'Preparing', 'Cooking', 'Ready', 'Out for Delivery'].includes(order.status))
                 .slice(0, 3),
         [ordersWithDerivedFields]
     );

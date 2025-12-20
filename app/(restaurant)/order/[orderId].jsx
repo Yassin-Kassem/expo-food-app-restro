@@ -398,7 +398,7 @@ export default function OrderDetailsScreen() {
                                 )}
                             </View>
                             <Text style={[styles.itemPrice, { color: theme.textPrimary }]}>
-                                ${(item.price * item.quantity).toFixed(2)}
+                                £{(item.price * item.quantity).toFixed(2)}
                             </Text>
                         </View>
                     ))}
@@ -426,21 +426,21 @@ export default function OrderDetailsScreen() {
                     </Text>
                     <View style={styles.summaryRow}>
                         <Text style={{ color: theme.textSecondary }}>Subtotal</Text>
-                        <Text style={{ color: theme.textPrimary }}>${order.subtotal?.toFixed(2) || '0.00'}</Text>
+                        <Text style={{ color: theme.textPrimary }}>£{order.subtotal?.toFixed(2) || '0.00'}</Text>
                     </View>
                     <View style={styles.summaryRow}>
                         <Text style={{ color: theme.textSecondary }}>Tax</Text>
-                        <Text style={{ color: theme.textPrimary }}>${order.tax?.toFixed(2) || '0.00'}</Text>
+                        <Text style={{ color: theme.textPrimary }}>£{order.tax?.toFixed(2) || '0.00'}</Text>
                     </View>
                     <View style={styles.summaryRow}>
                         <Text style={{ color: theme.textSecondary }}>Delivery Fee</Text>
-                        <Text style={{ color: theme.textPrimary }}>${order.deliveryFee?.toFixed(2) || '0.00'}</Text>
+                        <Text style={{ color: theme.textPrimary }}>£{order.deliveryFee?.toFixed(2) || '0.00'}</Text>
                     </View>
                     <View style={[styles.divider, { backgroundColor: theme.border }]} />
                     <View style={styles.summaryRow}>
                         <Text style={[styles.totalLabel, { color: theme.textPrimary }]}>Total</Text>
                         <Text style={[styles.totalAmount, { color: theme.primary }]}>
-                            ${order.total?.toFixed(2) || '0.00'}
+                            £{order.total?.toFixed(2) || '0.00'}
                         </Text>
                     </View>
                 </View>
@@ -459,7 +459,7 @@ export default function OrderDetailsScreen() {
                                 styles.footerButton, 
                                 { 
                                     backgroundColor: theme[action.color],
-                                    flex: statusActions.length > 1 ? (index === 0 ? 1 : 2) : 1,
+                                    flex: statusActions.length > 1 ? (index === 0 ? 2 : 1) : 1,
                                     marginRight: index === 0 && statusActions.length > 1 ? spacing.sm : 0,
                                 }
                             ]}

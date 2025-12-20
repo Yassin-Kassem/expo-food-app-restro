@@ -4,6 +4,7 @@ import { validateOrderStatusTransition } from '../utils/validation';
 import { notifyRestaurantNewOrder, notifyUserOrderStatusChange } from './notificationService';
 
 const collectionRef = () => firebaseFirestore().collection('orders');
+const restaurantCollectionRef = () => firebaseFirestore().collection('restaurants');
 
 /**
  * Map Firestore document to order object
@@ -79,6 +80,33 @@ export const createOrder = async (orderData) => {
         }
         if (!orderData.items || orderData.items.length === 0) {
             return { success: false, error: 'Order must have at least one item', errorCode: 'VALIDATION_ERROR' };
+        }
+
+        // Check if restaurant is open before creating order
+        try {
+            const restaurantDoc = await restaurantCollectionRef().doc(orderData.restaurantId).get();
+            if (!restaurantDoc.exists) {
+                return { success: false, error: 'Restaurant not found', errorCode: 'RESTAURANT_NOT_FOUND' };
+            }
+
+            const restaurantData = restaurantDoc.data();
+            // Check if restaurant is closed
+            // Restaurant is closed if restaurantStatus is 'closed' OR isOpen is explicitly false
+            // Restaurant is open if restaurantStatus is 'open' AND isOpen is true (or undefined)
+            const isClosed = restaurantData.restaurantStatus === 'closed' || 
+                           restaurantData.isOpen === false;
+            
+            if (isClosed) {
+                return { 
+                    success: false, 
+                    error: 'This restaurant is currently closed. Please try again later.', 
+                    errorCode: 'RESTAURANT_CLOSED' 
+                };
+            }
+        } catch (error) {
+            logError('CHECK_RESTAURANT_STATUS_ERROR', error, { restaurantId: orderData.restaurantId });
+            // Don't fail the order creation if we can't check status, but log it
+            // In production, you might want to fail here for security
         }
 
         const orderDisplayId = generateOrderDisplayId();

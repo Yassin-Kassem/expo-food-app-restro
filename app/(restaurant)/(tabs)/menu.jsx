@@ -50,7 +50,7 @@ export default function MenuScreen() {
 
     const formatPrice = (price) => {
         const numeric = typeof price === 'number' ? price : parseFloat(price) || 0;
-        return `$${numeric.toFixed(2)}`;
+        return `£${numeric.toFixed(2)}`;
     };
 
     const toggleAvailability = async (item) => {

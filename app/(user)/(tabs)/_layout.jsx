@@ -11,10 +11,7 @@ import { spacing, radius, fontWeight, shadows } from '../../../constants/theme';
 const TabBarIcon = ({ name, color, focused, badge, accentColor }) => {
     return (
         <View style={styles.tabIconContainer}>
-            <View style={[
-                styles.iconWrapper,
-                focused && { backgroundColor: `${color}15` }
-            ]}>
+            <View style={styles.iconWrapper}>
                 <Ionicons 
                     name={focused ? name : `${name}-outline`} 
                     size={hp('2.8%')} 
@@ -46,14 +43,14 @@ export default function UserTabsLayout() {
                 tabBarLabelStyle: {
                     fontSize: hp('1.3%'),
                     fontWeight: fontWeight.semibold,
-                    marginTop: -hp('0.5%'),
+                    marginTop: hp('0.3%'),
                     marginBottom: Platform.OS === 'ios' ? 0 : hp('0.8%'),
                 },
                 tabBarStyle: {
                     backgroundColor: theme.surface,
                     borderTopWidth: 0,
-                    height: Platform.OS === 'ios' ? hp('10%') : hp('8%'),
-                    paddingTop: hp('0.5%'),
+                    height: Platform.OS === 'ios' ? hp('11%') : hp('9%'),
+                    paddingTop: hp('0.8%'),
                     paddingBottom: Platform.OS === 'ios' ? hp('2.5%') : hp('1%'),
                     ...shadows.medium,
                     shadowColor: '#000',

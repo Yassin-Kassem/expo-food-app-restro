@@ -48,6 +48,22 @@ export const validateRestaurantData = (data) => {
         }
     }
     
+    if (data.rating !== undefined && data.rating !== null) {
+        const rating = typeof data.rating === 'string' ? parseFloat(data.rating) : data.rating;
+        if (isNaN(rating)) {
+            errors.rating = 'Rating must be a valid number';
+        } else if (rating < 1 || rating > 5) {
+            errors.rating = 'Rating must be between 1 and 5';
+        }
+    }
+    
+    if (data.priceRange !== undefined && data.priceRange !== null) {
+        const validPriceRanges = ['£', '££', '£££'];
+        if (!validPriceRanges.includes(data.priceRange)) {
+            errors.priceRange = 'Price range must be £, ££, or £££';
+        }
+    }
+    
     return Object.keys(errors).length > 0 ? errors : null;
 };
 

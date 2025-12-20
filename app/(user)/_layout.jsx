@@ -13,6 +13,7 @@ export default function UserLayout() {
             <Stack.Screen name="cart" />
             <Stack.Screen name="checkout" />
             <Stack.Screen name="order-tracking" />
+            <Stack.Screen name="saved-addresses" />
         </Stack>
     );
 }

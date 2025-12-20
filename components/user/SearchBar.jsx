@@ -69,6 +69,7 @@ const SearchBar = ({
                 {value.length > 0 && (
                     <TouchableOpacity 
                         onPress={handleClear}
+                        style={styles.clearButton}
                         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                         <Ionicons name="close-circle" size={hp('2.2%')} color={theme.textMuted} />
@@ -112,6 +113,9 @@ const styles = StyleSheet.create({
         fontSize: fontSize.body,
         fontWeight: fontWeight.medium,
         paddingVertical: hp('0.5%'),
+    },
+    clearButton: {
+        marginRight: spacing.sm,
     },
     divider: {
         width: 1,

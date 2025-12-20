@@ -124,7 +124,7 @@ const OrderCard = ({ order, onPress }) => {
             <View style={styles.orderFooter}>
                 <Text style={[styles.totalLabel, { color: theme.textMuted }]}>Total</Text>
                 <Text style={[styles.totalAmount, { color: theme.textPrimary }]}>
-                    ${order.total?.toFixed(2) || '0.00'}
+                    £{order.total?.toFixed(2) || '0.00'}
                 </Text>
                 
                 {isActive && getEstimatedTime() && (

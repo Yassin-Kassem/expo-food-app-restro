@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
     View, 
     Text, 
     ScrollView, 
     StyleSheet, 
     TouchableOpacity,
-    TextInput,
     StatusBar,
+    ActivityIndicator,
+    TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,24 +17,89 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
 import { spacing, fontSize, fontWeight, radius, shadows } from '../../constants/theme';
 import CustomModal from '../../components/CustomModal';
+import Input from '../../components/Input';
+import { updateUserProfile } from '../../services/userService';
+import { firebaseAuth } from '../../config/firebase.config';
 
 export default function Profile() {
     const { theme, isDarkMode } = useTheme();
-    const { user } = useAuth();
+    const { user, userData } = useAuth();
     const router = useRouter();
     
-    const [name, setName] = useState(user?.displayName || '');
+    const [name, setName] = useState(user?.displayName || userData?.name || userData?.displayName || '');
     const [email, setEmail] = useState(user?.email || '');
-    const [phone, setPhone] = useState('');
+    const [phone, setPhone] = useState(userData?.phoneNumber || '');
     const [saving, setSaving] = useState(false);
     const [modalVisible, setModalVisible] = useState(false);
+    const [errors, setErrors] = useState({});
+
+    // Update name when userData changes
+    useEffect(() => {
+        if (userData?.name || userData?.displayName) {
+            setName(userData.name || userData.displayName || '');
+        }
+        if (userData?.phoneNumber) {
+            setPhone(userData.phoneNumber || '');
+        }
+    }, [userData]);
+
+    const validateForm = () => {
+        const newErrors = {};
+        
+        if (!name.trim()) {
+            newErrors.name = 'Name is required';
+        }
+        
+        if (phone && !/^[\d\s\-\+\(\)]+$/.test(phone)) {
+            newErrors.phone = 'Please enter a valid phone number';
+        }
+        
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
 
     const handleSave = async () => {
+        if (!validateForm()) {
+            return;
+        }
+        
+        if (!user?.uid) {
+            setErrors({ general: 'User not authenticated' });
+            return;
+        }
+        
         setSaving(true);
-        // Simulate save
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setSaving(false);
-        setModalVisible(true);
+        try {
+            // Update Firebase Auth displayName
+            if (name.trim() && firebaseAuth().currentUser) {
+                try {
+                    await firebaseAuth().currentUser.updateProfile({
+                        displayName: name.trim()
+                    });
+                } catch (authError) {
+                    console.error('Error updating auth profile:', authError);
+                }
+            }
+
+            // Update Firestore user document
+            const result = await updateUserProfile(user.uid, {
+                name: name.trim(),
+                phoneNumber: phone.trim() || null,
+            });
+
+            if (!result.success) {
+                setSaving(false);
+                setErrors({ general: result.error || 'Failed to save profile. Please try again.' });
+                return;
+            }
+
+            setSaving(false);
+            setModalVisible(true);
+        } catch (error) {
+            console.error('Error saving profile:', error);
+            setSaving(false);
+            setErrors({ general: 'Failed to save profile. Please try again.' });
+        }
     };
 
     const initial = name?.charAt(0)?.toUpperCase() || email?.charAt(0)?.toUpperCase() || 'U';
@@ -63,72 +129,67 @@ export default function Profile() {
                     <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
                         <Text style={styles.avatarText}>{initial}</Text>
                     </View>
-                    <TouchableOpacity style={[styles.changePhotoBtn, { backgroundColor: theme.surface }]}>
-                        <Ionicons name="camera" size={hp('2%')} color={theme.primary} />
-                        <Text style={[styles.changePhotoText, { color: theme.primary }]}>
-                            Change Photo
-                        </Text>
-                    </TouchableOpacity>
                 </View>
 
                 {/* Form */}
                 <View style={[styles.formSection, { backgroundColor: theme.surface }]}>
-                    <View style={styles.inputGroup}>
-                        <Text style={[styles.label, { color: theme.textSecondary }]}>Full Name</Text>
-                        <TextInput
-                            style={[styles.input, { 
-                                backgroundColor: theme.surfaceAlt,
-                                color: theme.textPrimary,
-                            }]}
-                            placeholder="Enter your name"
-                            placeholderTextColor={theme.textMuted}
-                            value={name}
-                            onChangeText={setName}
-                        />
-                    </View>
+                    {errors.general && (
+                        <Text style={[styles.errorText, { color: theme.error }]}>
+                            {errors.general}
+                        </Text>
+                    )}
+                    
+                    <Input
+                        label="Full Name"
+                        placeholder="Enter your full name"
+                        value={name}
+                        onChangeText={setName}
+                        error={errors.name}
+                        autoCapitalize="words"
+                    />
 
                     <View style={styles.inputGroup}>
                         <Text style={[styles.label, { color: theme.textSecondary }]}>Email</Text>
-                        <TextInput
-                            style={[styles.input, { 
-                                backgroundColor: theme.surfaceAlt,
-                                color: theme.textMuted,
-                            }]}
-                            placeholder="Enter your email"
-                            placeholderTextColor={theme.textMuted}
-                            value={email}
-                            editable={false}
-                        />
+                        <View style={[styles.emailInputContainer, { backgroundColor: theme.surfaceAlt }]}>
+                            <TextInput
+                                style={[styles.emailInput, { color: theme.textMuted }]}
+                                value={email}
+                                editable={false}
+                                placeholder="Enter your email"
+                                placeholderTextColor={theme.textMuted}
+                            />
+                        </View>
                         <Text style={[styles.helperText, { color: theme.textMuted }]}>
                             Email cannot be changed
                         </Text>
                     </View>
 
-                    <View style={styles.inputGroup}>
-                        <Text style={[styles.label, { color: theme.textSecondary }]}>Phone Number</Text>
-                        <TextInput
-                            style={[styles.input, { 
-                                backgroundColor: theme.surfaceAlt,
-                                color: theme.textPrimary,
-                            }]}
-                            placeholder="Enter your phone number"
-                            placeholderTextColor={theme.textMuted}
-                            value={phone}
-                            onChangeText={setPhone}
-                            keyboardType="phone-pad"
-                        />
-                    </View>
+                    <Input
+                        label="Phone Number (Optional)"
+                        placeholder="Enter your phone number"
+                        value={phone}
+                        onChangeText={setPhone}
+                        keyboardType="phone-pad"
+                        error={errors.phone}
+                    />
                 </View>
 
                 {/* Save Button */}
                 <TouchableOpacity 
-                    style={[styles.saveButton, { backgroundColor: theme.primary }]}
+                    style={[
+                        styles.saveButton, 
+                        { backgroundColor: theme.primary },
+                        saving && styles.saveButtonDisabled
+                    ]}
                     onPress={handleSave}
                     disabled={saving}
+                    activeOpacity={0.8}
                 >
-                    <Text style={styles.saveButtonText}>
-                        {saving ? 'Saving...' : 'Save Changes'}
-                    </Text>
+                    {saving ? (
+                        <ActivityIndicator color="#fff" />
+                    ) : (
+                        <Text style={styles.saveButtonText}>Save Changes</Text>
+                    )}
                 </TouchableOpacity>
             </ScrollView>
 
@@ -178,6 +239,7 @@ const styles = StyleSheet.create({
     avatarSection: {
         alignItems: 'center',
         marginBottom: spacing.xl,
+        marginTop: spacing.md,
     },
     avatar: {
         width: hp('12%'),
@@ -185,25 +247,11 @@ const styles = StyleSheet.create({
         borderRadius: hp('6%'),
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: spacing.md,
     },
     avatarText: {
         color: '#fff',
         fontSize: fontSize.hero,
         fontWeight: fontWeight.bold,
-    },
-    changePhotoBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        borderRadius: radius.pill,
-        gap: spacing.xs,
-        ...shadows.soft,
-    },
-    changePhotoText: {
-        fontSize: fontSize.caption,
-        fontWeight: fontWeight.semibold,
     },
     formSection: {
         borderRadius: radius.lg,
@@ -211,27 +259,43 @@ const styles = StyleSheet.create({
         marginBottom: spacing.lg,
     },
     inputGroup: {
-        marginBottom: spacing.md,
+        marginBottom: spacing.lg,
     },
     label: {
         fontSize: fontSize.caption,
         fontWeight: fontWeight.semibold,
-        marginBottom: spacing.sm,
+        marginBottom: spacing.xs,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
-    input: {
-        padding: spacing.md,
-        borderRadius: radius.md,
+    emailInputContainer: {
+        borderRadius: radius.lg,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.md,
+    },
+    emailInput: {
         fontSize: fontSize.body,
+        fontWeight: fontWeight.medium,
     },
     helperText: {
         fontSize: fontSize.caption,
         marginTop: spacing.xs,
+        marginLeft: spacing.xs,
+    },
+    errorText: {
+        fontSize: fontSize.caption,
+        marginBottom: spacing.md,
+        textAlign: 'center',
     },
     saveButton: {
         alignItems: 'center',
         justifyContent: 'center',
         paddingVertical: spacing.md,
         borderRadius: radius.lg,
+        minHeight: hp('6%'),
+    },
+    saveButtonDisabled: {
+        opacity: 0.6,
     },
     saveButtonText: {
         color: '#fff',

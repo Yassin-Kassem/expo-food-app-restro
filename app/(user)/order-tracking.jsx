@@ -55,7 +55,9 @@ export default function OrderTracking() {
             return;
         }
 
+        let isMounted = true;
         const unsubscribe = listenToSingleOrder(orderId, (result) => {
+            if (!isMounted) return; // Prevent state updates if unmounted
             setLoading(false);
             
             if (result.success) {
@@ -69,6 +71,7 @@ export default function OrderTracking() {
 
         // Cleanup listener on unmount
         return () => {
+            isMounted = false;
             if (unsubscribe) unsubscribe();
         };
     }, [orderId]);
@@ -227,7 +230,7 @@ export default function OrderTracking() {
                             {order.restaurantName}
                         </Text>
                         <Text style={[styles.itemCount, { color: theme.textMuted }]}>
-                            {order.items?.length || 0} item{(order.items?.length || 0) !== 1 ? 's' : ''} • ${order.total?.toFixed(2) || '0.00'}
+                            {order.items?.length || 0} item{(order.items?.length || 0) !== 1 ? 's' : ''} • £{order.total?.toFixed(2) || '0.00'}
                         </Text>
                     </View>
                 </View>
@@ -335,7 +338,7 @@ export default function OrderTracking() {
                                 {item.name}
                             </Text>
                             <Text style={[styles.itemPrice, { color: theme.textMuted }]}>
-                                ${(item.price * item.quantity).toFixed(2)}
+                                £{(item.price * item.quantity).toFixed(2)}
                             </Text>
                         </View>
                     ))}

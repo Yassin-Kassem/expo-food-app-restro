@@ -32,7 +32,7 @@ const CartItem = ({ item, onUpdateQuantity }) => {
                     {item.name}
                 </Text>
                 <Text style={[styles.itemPrice, { color: theme.primary }]}>
-                    ${(item.price * item.quantity).toFixed(2)}
+                    £{(item.price * item.quantity).toFixed(2)}
                 </Text>
             </View>
 
@@ -111,7 +111,7 @@ const CartScreen = () => {
                 <View style={styles.headerCenter}>
                     <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Cart</Text>
                     <Text style={[styles.headerSubtitle, { color: theme.textMuted }]}>
-                        {restaurantName}
+                        {restaurantName + " "}
                     </Text>
                 </View>
                 <TouchableOpacity onPress={clearCart}>
@@ -157,25 +157,25 @@ const CartScreen = () => {
                             Subtotal ({itemCount})
                         </Text>
                         <Text style={[styles.summaryValue, { color: theme.textPrimary }]}>
-                            ${subtotal.toFixed(2)}
+                            £{subtotal.toFixed(2)}
                         </Text>
                     </View>
                     <View style={styles.summaryRow}>
                         <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Tax</Text>
                         <Text style={[styles.summaryValue, { color: theme.textPrimary }]}>
-                            ${tax.toFixed(2)}
+                            £{tax.toFixed(2)} {" "}
                         </Text>
                     </View>
                     <View style={styles.summaryRow}>
-                        <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Delivery</Text>
+                        <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Delivery </Text>
                         <Text style={[styles.summaryValue, { color: theme.textPrimary }]}>
-                            {deliveryFee > 0 ? `$${deliveryFee.toFixed(2)}` : 'Free'}
+                            {deliveryFee > 0 ? `£${deliveryFee.toFixed(2)}` : 'Free'} {" "}
                         </Text>
                     </View>
                     <View style={[styles.summaryRow, styles.totalRow, { borderTopColor: theme.border }]}>
                         <Text style={[styles.totalLabel, { color: theme.textPrimary }]}>Total</Text>
                         <Text style={[styles.totalValue, { color: theme.primary }]}>
-                            ${total.toFixed(2)}
+                            £{total.toFixed(2)} {" "}
                         </Text>
                     </View>
                 </View>
@@ -188,7 +188,7 @@ const CartScreen = () => {
                     onPress={() => router.push('/(user)/checkout')}
                 >
                     <Text style={styles.checkoutText}>Checkout</Text>
-                    <Text style={styles.checkoutPrice}>${total.toFixed(2)}</Text>
+                    <Text style={styles.checkoutPrice}>£{total.toFixed(2)}</Text>
                 </TouchableOpacity>
             </View>
         </SafeAreaView>

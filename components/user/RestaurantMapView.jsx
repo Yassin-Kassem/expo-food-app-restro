@@ -43,7 +43,7 @@ const generateMapHTML = (restaurants, userLocation, theme) => {
             var marker${index} = L.marker([${rLat}, ${rLng}], {
                 icon: L.divIcon({
                     className: 'custom-marker',
-                    html: '<div class="marker" data-id="${r.id}"><span>${r.priceRange || '$'}</span></div>',
+                    html: '<div class="marker" data-id="${r.id}"><span>${r.priceRange || '£'}</span></div>',
                     iconSize: [40, 40],
                     iconAnchor: [20, 40]
                 })
@@ -268,7 +268,7 @@ const RestaurantCard = ({ restaurant, onPress, theme, isVisible }) => {
                         <View style={styles.metaItem}>
                             <Ionicons name="bicycle-outline" size={14} color={theme.primary} />
                             <Text style={[styles.metaText, { color: theme.textSecondary }]}>
-                                ${(restaurant.deliveryFee || 0).toFixed(2)}
+                                £{(restaurant.deliveryFee || 0).toFixed(2)}
                             </Text>
                         </View>
                         

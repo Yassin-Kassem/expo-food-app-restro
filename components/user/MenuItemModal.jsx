@@ -154,7 +154,7 @@ const MenuItemModal = ({
                                     {item.name}
                                 </Text>
                                 <Text style={[styles.itemPrice, { color: theme.primary }]}>
-                                    ${item.price.toFixed(2)}
+                                    £{item.price.toFixed(2)}
                                 </Text>
                             </View>
 
@@ -253,7 +253,7 @@ const MenuItemModal = ({
                         >
                             <Text style={styles.addToCartText}>Add to Cart</Text>
                             <View style={styles.priceTag}>
-                                <Text style={styles.priceTagText}>${totalPrice}</Text>
+                                <Text style={styles.priceTagText}>£{totalPrice}</Text>
                             </View>
                         </TouchableOpacity>
                     </View>

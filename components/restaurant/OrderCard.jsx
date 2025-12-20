@@ -61,7 +61,7 @@ export default function OrderCard({ order, onPress, actionLabel, onActionPress }
                         x{order.itemsCount}
                     </Text>
                     <Text style={[styles.itemPrice, { color: theme.textPrimary }]}>
-                        ${order.total}
+                        £{order.total}
                     </Text>
                 </View>
             </View>
@@ -72,7 +72,7 @@ export default function OrderCard({ order, onPress, actionLabel, onActionPress }
             <View style={styles.footer}>
                 <View style={styles.totalRow}>
                     <Text style={[styles.totalLabel, { color: theme.textSecondary }]}>Total:</Text>
-                    <Text style={[styles.totalValue, { color: theme.textPrimary }]}>${order.total}</Text>
+                    <Text style={[styles.totalValue, { color: theme.textPrimary }]}>£{order.total}</Text>
                 </View>
 
                 {/* Large Action Button or Status Indicator */}

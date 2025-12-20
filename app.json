@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Restro",
-    "slug": "restroFoodApp",
+    "slug": "app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/restro.png",
@@ -20,11 +20,17 @@
         "NSLocationWhenInUseUsageDescription": "This app uses your location to find nearby restaurants.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "This app uses your location to find nearby restaurants.",
         "ITSAppUsesNonExemptEncryption": false
+      },
+      "icon": {
+        "light": "./assets/icons/ios-light.png",
+        "dark": "./assets/icons/ios-dark.png",
+        "tinted": "./assets/icons/ios-tinted.png"
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/icons/adaptive-icon.png",
+        "monochromeImage": "./assets/icons/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -40,10 +46,21 @@
       "expo-router",
       "expo-image-picker",
       "expo-location",
-      ["expo-notifications",
+      [ "expo-splash-screen",
         {
-          "icon": "./assets/restro.png",
-          "color": "#ffffff"
+          "image": "./assets/icons/light-splash.png",
+          "backgroundColor": "#F5F5F7",
+          "dark": {
+            "image": "./assets/icons/dark-splash.png",
+            "backgroundColor": "#0F172A"
+          },
+          "imageWidth": 200
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icons/adaptive-icon.png"
         }
       ],
       [
