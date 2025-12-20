@@ -6,7 +6,6 @@ import {
     StyleSheet, 
     TouchableOpacity, 
     RefreshControl,
-    StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -141,8 +140,6 @@ const HomeScreen = () => {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-            <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.background} />
-            
             <ScrollView
                 showsVerticalScrollIndicator={false}
                 refreshControl={

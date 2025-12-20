@@ -5,7 +5,6 @@ import {
     ScrollView, 
     StyleSheet, 
     TouchableOpacity,
-    StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,8 +19,6 @@ export default function Privacy() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-            <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
-            
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity 

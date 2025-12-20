@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { spacing, fontSize, fontWeight, radius, shadows } from '../../../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -255,7 +254,6 @@ export default function SettingsScreen() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-            <StatusBar style={isDarkMode ? "light" : "dark"} />
             <ScrollView 
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}

@@ -1,7 +1,6 @@
 import { Tabs } from 'expo-router';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
-import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, fontSize, fontWeight, radius } from '../../../constants/theme';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
@@ -12,7 +11,6 @@ export default function TabsLayout() {
 
     return (
         <>
-            <StatusBar style={isDarkMode ? "light" : "dark"} />
             <Tabs
             screenOptions={{
                 headerShown: false,

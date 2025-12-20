@@ -6,7 +6,6 @@ import {
     TouchableOpacity, 
     Animated,
     Dimensions,
-    StatusBar,
     Image,
     Easing,
 } from 'react-native';
@@ -17,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { useTheme } from '../../contexts/ThemeContext';
 import { spacing, fontSize, fontWeight, radius } from '../../constants/theme';
+import ThemedStatusBar from '../../components/ThemedStatusBar';
 
 // Import the banner
 const RestroBanner = require('../../assets/restro_banner.png');
@@ -147,7 +147,7 @@ export default function WelcomeScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: isDarkMode ? '#0F172A' : '#072e26' }]}>
-            <StatusBar barStyle="light-content" />
+            <ThemedStatusBar style="light" />
             
             {/* Background Gradient - Matching banner colors */}
             <LinearGradient

@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Stack, useSegments } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
-import { StatusBar } from 'expo-status-bar';
 
 import { useTheme } from '../../../contexts/ThemeContext';
 import { spacing, fontSize, fontWeight, radius, shadows } from '../../../constants/theme';
@@ -77,7 +76,6 @@ export default function OnboardingLayout() {
 
     return (
         <View style={styles.container}>
-            <StatusBar style={isDarkMode ? "light" : "dark"} />
             <Animated.View 
                 style={[
                     styles.headerContainer,

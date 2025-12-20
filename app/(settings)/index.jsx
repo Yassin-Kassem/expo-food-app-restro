@@ -7,7 +7,6 @@ import {
     TouchableOpacity,
     Switch,
     ActivityIndicator,
-    StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -165,7 +164,6 @@ export default function SettingsScreen() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-            <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity 

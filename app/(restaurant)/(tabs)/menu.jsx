@@ -104,7 +104,7 @@ export default function MenuScreen() {
 
     const renderSectionHeader = ({ section: { title } }) => (
         <View style={[styles.sectionHeader ]}>
-            <Text style={[styles.sectionTitle]}>{title} </Text>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{title} </Text>
         </View>
     );
 

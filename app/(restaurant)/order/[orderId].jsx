@@ -5,7 +5,6 @@ import { spacing, fontSize, fontWeight, radius, shadows } from '../../../constan
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { StatusBar } from 'expo-status-bar';
 import Badge from '../../../components/restaurant/Badge';
 import CustomModal from '../../../components/CustomModal';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
@@ -241,7 +240,6 @@ export default function OrderDetailsScreen() {
     if (loading) {
         return (
             <View style={[styles.container, styles.centerContent, { backgroundColor: theme.background }]}>
-                <StatusBar style={isDarkMode ? 'light' : 'dark'} />
                 <ActivityIndicator size="large" color={theme.primary} />
                 <Text style={[styles.loadingText, { color: theme.textMuted }]}>
                     Loading order details...
@@ -254,7 +252,6 @@ export default function OrderDetailsScreen() {
     if (error || !order) {
         return (
             <View style={[styles.container, styles.centerContent, { backgroundColor: theme.background }]}>
-                <StatusBar style={isDarkMode ? 'light' : 'dark'} />
                 <Ionicons name="alert-circle-outline" size={60} color={theme.error} />
                 <Text style={[styles.errorTitle, { color: theme.textPrimary }]}>
                     Order Not Found
@@ -278,7 +275,6 @@ export default function OrderDetailsScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <StatusBar style={isDarkMode ? 'light' : 'dark'} />
             <Stack.Screen options={{ headerShown: false }} />
 
             {/* Header */}

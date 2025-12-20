@@ -5,7 +5,6 @@ import {
     ScrollView, 
     StyleSheet, 
     TouchableOpacity,
-    StatusBar,
     ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -113,7 +112,6 @@ export default function OrderTracking() {
     if (loading) {
         return (
             <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-                <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={theme.primary} />
                     <Text style={[styles.loadingText, { color: theme.textMuted }]}>
@@ -128,7 +126,6 @@ export default function OrderTracking() {
     if (error || !order) {
         return (
             <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-                <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
                 <View style={styles.errorContainer}>
                     <Ionicons name="alert-circle-outline" size={hp('8%')} color={theme.error} />
                     <Text style={[styles.errorTitle, { color: theme.textPrimary }]}>
@@ -150,8 +147,6 @@ export default function OrderTracking() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-            <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
-            
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity 

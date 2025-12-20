@@ -1,6 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../../../contexts/ThemeContext';
 
@@ -10,7 +9,6 @@ export default function EditItem() {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <StatusBar style="dark" />
             <Text style={{ zIndex: 1 }}>Edit Menu Item Screen - Item ID: {itemId} </Text>
         </View>
     );

@@ -6,6 +6,7 @@ import { CartProvider } from '../contexts/CartContext';
 import { LocationProvider } from '../contexts/LocationContext';
 import { useAuth } from '../hooks/useAuth';
 import { NotificationProvider } from '../contexts/notificationsContext';
+import ThemedStatusBar from '../components/ThemedStatusBar';
 import * as Notifications from 'expo-notifications';
 
 Notifications.setNotificationHandler({
@@ -132,27 +133,30 @@ function RootLayoutContent() {
     }
 
     return (
-        <Stack screenOptions={{ headerShown: false }}>
-            {/* Auth routes - accessible when NOT authenticated OR when selecting role */}
-            <Stack.Protected guard={!user || (user && !userData)}>
-                <Stack.Screen name="(auth)" />
-            </Stack.Protected>
+        <>
+            <ThemedStatusBar />
+            <Stack screenOptions={{ headerShown: false }}>
+                {/* Auth routes - accessible when NOT authenticated OR when selecting role */}
+                <Stack.Protected guard={!user || (user && !userData)}>
+                    <Stack.Screen name="(auth)" />
+                </Stack.Protected>
 
-            {/* User (customer) routes - accessible when authenticated as user */}
-            <Stack.Protected guard={!!user && userData?.role === 'user'}>
-                <Stack.Screen name="(user)" />
-            </Stack.Protected>
+                {/* User (customer) routes - accessible when authenticated as user */}
+                <Stack.Protected guard={!!user && userData?.role === 'user'}>
+                    <Stack.Screen name="(user)" />
+                </Stack.Protected>
 
-            {/* Restaurant routes - accessible when authenticated as restaurant */}
-            <Stack.Protected guard={!!user && userData?.role === 'restaurant'}>
-                <Stack.Screen name="(restaurant)" />
-            </Stack.Protected>
+                {/* Restaurant routes - accessible when authenticated as restaurant */}
+                <Stack.Protected guard={!!user && userData?.role === 'restaurant'}>
+                    <Stack.Screen name="(restaurant)" />
+                </Stack.Protected>
 
-            {/* Settings routes - accessible when authenticated */}
-            <Stack.Protected guard={!!user && !!userData}>
-                <Stack.Screen name="(settings)" />
-            </Stack.Protected>
-        </Stack>
+                {/* Settings routes - accessible when authenticated */}
+                <Stack.Protected guard={!!user && !!userData}>
+                    <Stack.Screen name="(settings)" />
+                </Stack.Protected>
+            </Stack>
+        </>
     );
 }
 

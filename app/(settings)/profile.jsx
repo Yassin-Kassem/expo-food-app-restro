@@ -5,7 +5,6 @@ import {
     ScrollView, 
     StyleSheet, 
     TouchableOpacity,
-    StatusBar,
     ActivityIndicator,
     TextInput,
 } from 'react-native';
@@ -106,8 +105,6 @@ export default function Profile() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-            <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
-            
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity 
