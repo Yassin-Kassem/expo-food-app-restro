@@ -48,3 +48,5 @@ google-services.json
 # Firebase Admin SDK credentials
 scripts/seed/serviceAccountKey.json
 **/serviceAccountKey.json
+
+rules.md
